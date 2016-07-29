@@ -8,6 +8,27 @@
 const double TORAD = M_PI / 180.0;
 
 struct params;
+double thetaPrime(double r, double thv, double phi);
+double energyProfile(double thp, double sig, double kap);
+struct RootFuncPhi;
+void testRootSolve();
+//std::pair <double, int> rtnewtPhi(RootFuncPhi *func, const double g, const double xacc);
+double rtnewtPhi(RootFuncPhi *func, const double g, const double xacc);
+//std::pair <double, int> rtnewtAlpha(RootFuncPhi *func, const double g, const double xacc);
+double rtnewtAlpha(RootFuncPhi *func, const double g, const double xacc);
+struct Quadrature;
+struct TrapzdPhi;
+void testPhiInt();
+double simpsPhi(params *ps, const double r0, const double a, const double b, FILE *ofile, const double eps = 1.0e-9);
+
+int main(void)
+{
+    //testRootSolve();
+    testPhiInt();
+    
+    return 0;
+}
+
 struct params {
     const double KAP;
     const double THV;
@@ -15,41 +36,6 @@ struct params {
     const double K;
     const double P;
 };
-double thetaPrime(double r, double thv, double phi);
-double energyProfile(double thp, double sig, double kap);
-struct RootFuncPhi;
-void testRootSolve();
-std::pair <double, int> rtnewtPhi(RootFuncPhi *func, const double g, const double xacc);
-std::pair <double, int> rtnewtAlpha(RootFuncPhi *func, const double g, const double xacc);
-struct Quadrature;
-struct TrapzdPhi;
-void testPhiInt();
-double simpsPhi(params *ps, const double r0, const double a, const double b, const double eps = 1.0e-9);
-
-int main(void)
-{
-    //void testRootSolve();
-    testPhiInt();
-    //params PS = { 0.0, 0.0*TORAD, 2.0, 0.0, 2.2 };
-    //const int NMAX = 20;
-    //double sum, osum, eps = 1.0e-7;
-    //int it, j;
-    //for (int n = 0; n < NMAX; n++) {
-    //    for (it = 1, j = 1; j<n - 1; j++) it <<= 1;
-    //    sum = simpsPhi(&PS, 0.1, 0.0, 2.0*M_PI, it);
-    //    std::cout << "Num Steps = " << it << ",\tSum = " << sum << std::endl;
-    //    if (n > 5)
-    //        if (std::abs(sum - osum) < eps*std::abs(osum) ||
-    //            (sum == 0.0 && osum == 0.0)) {
-    //            std::cout << "sum found" << std::endl;
-    //            //return sum;
-    //            break;
-    //        }
-    //    osum = sum;
-    //}
-    
-    return 0;
-}
 
 double thetaPrime(double r, double thv, double phi) {
     double numer = r*pow(pow(cos(thv), 2) - 0.25*pow(sin(2.0*thv), 2)*pow(cos(phi), 2), 0.5);
@@ -87,8 +73,8 @@ struct RootFuncPhi
 };
 
 //template <class T>
-std::pair <double, int> rtnewtPhi(RootFuncPhi *func, const double g, const double xacc) {
-    //double rtnewt(T &func, const double g, const double xacc) {
+//std::pair <double, int> rtnewtPhi(RootFuncPhi *func, const double g, const double xacc) {
+double rtnewtPhi(RootFuncPhi *func, const double g, const double xacc) {
     const int JMAX = 20;
     double root = g;
     for (int j = 0; j < JMAX; j++) {
@@ -98,9 +84,9 @@ std::pair <double, int> rtnewtPhi(RootFuncPhi *func, const double g, const doubl
         root -= dx;
         //printf_s("j=%d\tdx=%e\troot=%f\n", j, dx, root);
         if (std::abs(dx) < xacc) {
-            std::pair <double, int> rtnPair(root, j + 1);
-            return rtnPair;
-            //return root;
+            //std::pair <double, int> rtnPair(root, j + 1);
+            //return rtnPair;
+            return root;
         }
     }
     throw("Maximum number of iterations exceeded in rtnewt");
@@ -108,8 +94,8 @@ std::pair <double, int> rtnewtPhi(RootFuncPhi *func, const double g, const doubl
 
 //template <class T>
 //std::pair <double, int> rtnewtAlpha(T &func, const double g, const double xacc) {
-std::pair <double, int> rtnewtAlpha(RootFuncPhi *func, const double g, const double xacc) {
-    //double rtnewt(T &func, const double g, const double xacc) {
+//std::pair <double, int> rtnewtAlpha(RootFuncPhi *func, const double g, const double xacc) {
+double rtnewtAlpha(RootFuncPhi *func, const double g, const double xacc) {
     const int JMAX = 25;
     double root = g, alpha = 1.0, oldAlpha, resBef, resAft;
     for (int j = 0; j < JMAX; j++) {
@@ -122,9 +108,9 @@ std::pair <double, int> rtnewtAlpha(RootFuncPhi *func, const double g, const dou
         resAft = func->f(root);
         printf_s("j=%d\talpha=%f\tresBef=%f\tresAft=%f\troot=%f\tdx=%e\n", j, alpha, resBef, resAft, root, dx);
         if (std::abs(dx) < xacc) {
-            std::pair <double, int> rtnPair(root, j);
-            return rtnPair;
-            //return root;
+            //std::pair <double, int> rtnPair(root, j);
+            //return rtnPair;
+            return root;
         }
         else if (std::abs(resAft) > std::abs(resBef)) {
             alpha *= 0.5;
@@ -171,8 +157,9 @@ struct TrapzdPhi : Quadrature {
         for (sum = 0.0, j = 0; j <= it; j++, x += del) {
             //sum += func(x);
             RootFuncPhi rfunc(x, r0, p);
-            std::pair <double, int> rPair = rtnewtPhi(&rfunc, g, 1.0e-11);
-            double rp = rPair.first;
+            //std::pair <double, int> rPair = rtnewtPhi(&rfunc, g, 1.0e-11);
+            //double rp = rPair.first;
+            double rp = rtnewtPhi(&rfunc, g, 1.0e-11);
             g = rp;
             sum += pow(rp / r0, 2.0);
         }
@@ -182,7 +169,7 @@ struct TrapzdPhi : Quadrature {
     }
 };
 
-double simpsPhi(params *ps, const double r0, const double a, const double b, const double eps) {
+double simpsPhi(params *ps, const double r0, const double a, const double b, FILE *ofile, const double eps) {
     const int NMAX = 25;
     double sum, osum = 0.0;
     for (int n = 2; n < NMAX; n++) {
@@ -196,26 +183,31 @@ double simpsPhi(params *ps, const double r0, const double a, const double b, con
         x = a;
         for (int i = 1; i < it; i++, x += h) {
             RootFuncPhi rfunc(x, r0, ps);
-            std::pair <double, int> rPair = rtnewtPhi(&rfunc, g, 1.0e-11);
-            double rp = rPair.first;
+            //std::pair <double, int> rPair = rtnewtPhi(&rfunc, g, 1.0e-10);
+            //double rp = rPair.first;
+            double rp = rtnewtPhi(&rfunc, g, 1.0e-10);
             g = rp;
+            double fx = pow(rp / r0, 2.0);
+            fprintf(ofile, "%d,%f,%e\n", i, x, fx);
             if (i % 2) {
-                s += 4.0*pow(rp / r0, 2.0);
+                s += 4.0*fx;
             }
             else {
-                s += 2.0*pow(rp / r0, 2.0);
+                s += 2.0*fx;
             }
         }
 
         sum = s*h / 3;
+        fprintf(ofile, "#Step %d, n = %d, sum = %e\n", n, it, sum);
         if (n > 3)
             if (std::abs(sum - osum) < eps*std::abs(osum) || (sum == 0.0 && osum == 0.0)) {
-                std::cout << "n = " << n << ",\tNum Steps = " << it << ",\tSum = " << sum << std::endl;
+                //std::cout << "n = " << n << ",\tNum Steps = " << it << ",\tSum = " << sum << std::endl;
                 return sum;
             }
         osum = sum;
         //std::cout << i << std::endl;
     }
+    throw("Maximum number of iterations exceeded in simpsPhi");
 }
 
 void testRootSolve() {
@@ -232,7 +224,7 @@ void testRootSolve() {
     std::cout << "Enter desired number of steps: ";
     std::cin >> NSTEPS;
 
-    FILE * ofile;
+    FILE *ofile;
     errno_t err;
     char filename[50];
     sprintf_s(filename, 50, "phiRoot_r0=%f_kap=%f_thv=%f.txt", R0, PARAMS.KAP, PARAMS.THV);
@@ -241,10 +233,10 @@ void testRootSolve() {
     for (int p = 0; p <= NSTEPS; p++) {
         double phi = 360.0*TORAD*p / NSTEPS;
         RootFuncPhi rfunc(phi, R0, &PARAMS);
-        std::pair <double, int> root = rtnewtPhi(&rfunc, G, 1.0e-11);
-        fprintf(ofile, "%3.2f\t%f\t%d\n", phi, root.first, root.second);
-        G = root.first;
-        std::cout << G << std::endl;
+        //std::pair <double, int> root = rtnewtPhi(&rfunc, G, 1.0e-11);
+        //fprintf(ofile, "%3.2f\t%f\t%d\n", phi, root.first, root.second);
+        //G = root.first;
+        //std::cout << G << std::endl;
     }
     fclose(ofile);
 }
@@ -255,5 +247,12 @@ void testPhiInt() {
     std::cout << "Enter values (R0, KAP, THV): " << std::endl;
     std::cin >> R0 >> KAP >> THV;
     params PS = { KAP, THV*TORAD, 2.0, 0.0, 2.2 };
-    double sumVal = simpsPhi(&PS, R0, 0.0, 2.0*M_PI);
+    FILE * ofile;
+    errno_t err;
+    char filename[50];
+    sprintf_s(filename, 50, "phiInt_r0=%f_kap=%f_thv=%f.csv", R0, PS.KAP, PS.THV);
+    err = fopen_s(&ofile, filename, "w");
+    fprintf(ofile, "Step,Phi,f(phi)\n");
+    double sumVal = simpsPhi(&PS, R0, 0.0, 2.0*M_PI, ofile);
+    fclose(ofile);
 }
