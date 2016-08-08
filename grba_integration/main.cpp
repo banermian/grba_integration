@@ -1,4 +1,5 @@
 #define _USE_MATH_DEFINES
+#define DLLEXPORT extern "C" __declspec(dllexport)
 #include <cmath>
 #include <iostream>
 #include <fstream>
@@ -8,8 +9,8 @@
 const double TORAD = M_PI / 180.0;
 
 struct params;
-double thetaPrime(double r, double thv, double phi);
-double energyProfile(double thp, double sig, double kap);
+DLLEXPORT double thetaPrime(double r, double thv, double phi);
+DLLEXPORT double energyProfile(double thp, double sig, double kap);
 struct RootFuncPhi;
 void testRootSolve();
 //std::pair <double, int> rtnewtPhi(RootFuncPhi *func, const double g, const double xacc);
@@ -19,12 +20,15 @@ double rtnewtAlpha(RootFuncPhi *func, const double g, const double xacc);
 struct Quadrature;
 struct TrapzdPhi;
 void testPhiInt();
-double simpsPhi(params *ps, const double r0, const double a, const double b, FILE *ofile, const double eps = 1.0e-9);
+double simpsPhi(params *ps, const double r0, const double a, const double b, const double eps = 1.0e-9);
+DLLEXPORT double phiInt(const double r0, const double kap, const double thv, const double sig);
 
 int main(void)
 {
     //testRootSolve();
     testPhiInt();
+    // double result = phiInt(0.1, 1.0, 6.0, 2.0);
+    // std::cout << result << std::endl;
     
     return 0;
 }
@@ -37,13 +41,13 @@ struct params {
     const double P;
 };
 
-double thetaPrime(double r, double thv, double phi) {
+DLLEXPORT double thetaPrime(double r, double thv, double phi) {
     double numer = r*pow(pow(cos(thv), 2) - 0.25*pow(sin(2.0*thv), 2)*pow(cos(phi), 2), 0.5);
     double denom = 1.0 + 0.5*r*sin(2.0*thv)*cos(phi);
     return numer / denom;
 }
 
-double energyProfile(double thp, double sig, double kap) {
+DLLEXPORT double energyProfile(double thp, double sig, double kap) {
     return exp2(-pow(thp / sig, 2.0*kap));
 }
 
@@ -169,7 +173,7 @@ struct TrapzdPhi : Quadrature {
     }
 };
 
-double simpsPhi(params *ps, const double r0, const double a, const double b, FILE *ofile, const double eps) {
+double simpsPhi(params *ps, const double r0, const double a, const double b, const double eps) {
     const int NMAX = 25;
     double sum, osum = 0.0;
     for (int n = 2; n < NMAX; n++) {
@@ -188,7 +192,7 @@ double simpsPhi(params *ps, const double r0, const double a, const double b, FIL
             double rp = rtnewtPhi(&rfunc, g, 1.0e-10);
             g = rp;
             double fx = pow(rp / r0, 2.0);
-            fprintf(ofile, "%d,%f,%e\n", i, x, fx);
+            //fprintf(ofile, "%d,%f,%e\n", i, x, fx);
             if (i % 2) {
                 s += 4.0*fx;
             }
@@ -198,7 +202,7 @@ double simpsPhi(params *ps, const double r0, const double a, const double b, FIL
         }
 
         sum = s*h / 3;
-        fprintf(ofile, "#Step %d, n = %d, sum = %e\n", n, it, sum);
+        //fprintf(ofile, "#Step %d, n = %d, sum = %e\n", n, it, sum);
         if (n > 3)
             if (std::abs(sum - osum) < eps*std::abs(osum) || (sum == 0.0 && osum == 0.0)) {
                 //std::cout << "n = " << n << ",\tNum Steps = " << it << ",\tSum = " << sum << std::endl;
@@ -247,12 +251,19 @@ void testPhiInt() {
     std::cout << "Enter values (R0, KAP, THV): " << std::endl;
     std::cin >> R0 >> KAP >> THV;
     params PS = { KAP, THV*TORAD, 2.0, 0.0, 2.2 };
-    FILE * ofile;
-    errno_t err;
-    char filename[50];
-    sprintf_s(filename, 50, "phiInt_r0=%f_kap=%f_thv=%f.csv", R0, PS.KAP, PS.THV);
-    err = fopen_s(&ofile, filename, "w");
-    fprintf(ofile, "Step,Phi,f(phi)\n");
-    double sumVal = simpsPhi(&PS, R0, 0.0, 2.0*M_PI, ofile);
-    fclose(ofile);
+    // FILE * ofile;
+    // errno_t err;
+    // char filename[50];
+    // sprintf_s(filename, 50, "phiInt_r0=%f_kap=%f_thv=%f.csv", R0, PS.KAP, PS.THV);
+    // err = fopen_s(&ofile, filename, "w");
+    // fprintf(ofile, "Step,Phi,f(phi)\n");
+    double sumVal = simpsPhi(&PS, R0, 0.0, 2.0*M_PI);
+    // fclose(ofile);
+    std::cout << sumVal << std::endl;
+}
+
+DLLEXPORT double phiInt(const double r0, const double kap, const double thv, const double sig) {
+    params PS = { kap, thv*TORAD, sig, 0.0, 2.2 };
+    double sumVal = simpsPhi(&PS, r0, 0.0, 2.0*M_PI);
+    return sumVal;
 }
