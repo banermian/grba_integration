@@ -1,9 +1,14 @@
 import sys
 from ctypes import *
-import numpy as np
 from scipy.optimize import fsolve
 from scipy.integrate import nquad
 from math import radians, degrees
+import numpy as np
+import pandas as pd
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import seaborn as sns
+sns.set_style("whitegrid")
 
 grbaint = cdll.LoadLibrary("Release/grba_integration.dll")
 phiInt = grbaint.phiInt
@@ -51,7 +56,9 @@ def fluxG_fullStr(r, y, kap, sig, thv, gA = 1.0, k = 0.0, p = 2.2):
     if chiVal < 1.0:
         return 0.0
     else:
-        return r*intG(y, chiVal)*phiInt(r, kap, degrees(thv), sig)
+        return r*intG(y, chiVal)*phiInt(r, kap, thv, sig)
+
+vec_fluxG_fullStr = np.vectorize(fluxG_fullStr)
 
 def bounds_yr(kap, sig, thv):
     return [0.1, 1.0]
@@ -59,17 +66,61 @@ def bounds_yr(kap, sig, thv):
 def bounds_ry(y, kap, sig, thv):
     return [0.1, r0_max(y, kap, sig, thv)]
 
+def plot_r0Int(y, kap, sig, thv):
+    R0_MAX = r0_max(y, kap, sig, thv)
+    # r0s = np.linspace(0.001, R0_MAX, num = 1000)
+    r0s = np.logspace(-3, np.log10(R0_MAX), num = 100)
+    # vals = np.asarray([fluxG_fullStr(r0, y, kap, sig, thv) for r0 in r0s])
+    vals = vec_fluxG_fullStr(r0s, y, kap, sig, radians(thv))
+    dat = pd.DataFrame(data = {'r0': r0s, 'int': vals})
+    NUM_ROWS = len(dat)
+    dat['y'] = np.repeat(y, NUM_ROWS)
+    dat['kap'] = np.repeat(kap, NUM_ROWS)
+    dat['thv'] = np.repeat(thv, NUM_ROWS)
+    # print data.head()
+    # plt.plot(r0s, vals, label = str(y))
+    # plt.loglog(r0s, vals, label = str(y))
+    return(dat)
+    
+def plot_r0Int_grid():
+    SIGMA = 2.0
+    df_list = []
+    for KAPPA in [0.0, 1.0, 10.0]:
+        for THETA_V in [0.0, 2.0, 6.0]:
+            for y in [0.1, 0.25, 0.5, 0.75, 0.9]:
+                df = plot_r0Int(y, KAPPA, SIGMA, THETA_V)
+                # print df.head()
+                df_list.append(df)
+    
+    data = pd.concat(df_list)
+    # plt.figure()
+    grid = sns.lmplot(x = 'r0', y = 'int', hue = 'y',
+                        col = 'kap', row = 'thv', data = data, fit_reg = False,
+                        palette = 'viridis')  # 
+    grid.set(yscale="log")
+    grid.set(xscale="log")
+    axes = grid.axes
+    axes[0, 0].set_ylim(1.0e-9, )
+    axes[0, 0].set_xlim(1.0e-3, )
+    grid.set_titles('thv = {row_name} | kap = {col_name}')
+    # plt.show()
+    grid.savefig("r0-integrand.png")
+
 def main():
     tiny = np.power(10.0, -3.0)
     SIGMA = 2.0
-    #KAPPA = tiny
-    for kap in range(10):
-        # KAPPA = np.power(10.0, -float(kap + 1))
-        KAPPA = float(kap) + 0.01
-        # print fluxG_fullStr(0.1, 0.5, 1.0, 2.0, radians(6.0))
-        str_int = nquad(fluxG_fullStr, [bounds_ry, bounds_yr], 
-                        args = (KAPPA, SIGMA, radians(6.0)))
-        print str_int
+    KAPPA = 1.0
+    THETA_V = radians(6.0)
+    plot_r0Int_grid()
+
+    # #KAPPA = tiny
+    # for kap in range(10):
+        # # KAPPA = np.power(10.0, -float(kap + 1))
+        # KAPPA = float(kap) + 0.01
+        # # print fluxG_fullStr(0.1, 0.5, 1.0, 2.0, radians(6.0))
+        # str_int = nquad(fluxG_fullStr, [bounds_ry, bounds_yr], 
+                        # args = (KAPPA, SIGMA, radians(6.0)))
+        # print str_int
 
 if __name__ == "__main__":
     sys.exit(int(main() or 0))

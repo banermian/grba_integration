@@ -22,14 +22,42 @@ struct TrapzdPhi;
 void testPhiInt();
 double simpsPhi(params *ps, const double r0, const double a, const double b, const double eps = 1.0e-9);
 DLLEXPORT double phiInt(const double r0, const double kap, const double thv, const double sig);
+DLLEXPORT double intG(double y, double chi, const double k, const double p);
+DLLEXPORT double fluxG(const double y, const double r0, const double kap, const double thv, const double sig, const double gA = 1.0, const double k = 0.0, const double p = 2.2);
+struct Midpnt;
+
 
 int main(void)
 {
     //testRootSolve();
-    testPhiInt();
+    //testPhiInt();
     // double result = phiInt(0.1, 1.0, 6.0, 2.0);
     // std::cout << result << std::endl;
-    
+
+    int n, it, j;
+    double x, tnm, del, ddel;
+    double a = 0.0, b = 2.0;
+
+    std::cout << "Enter the value of n: " << std::endl;
+    std::cin >> n;
+
+    for (it = 1, j = 1; j < n - 1; j++) {
+        std::cout << j << "\t" << it << std::endl;
+        it *= 3;
+    }
+    tnm = it;
+    del = (b - a) / (3.0*tnm);
+    ddel = del + del;
+    std::cout << del << "\t" << ddel << std::endl;
+    x = a + 0.5*del;
+    for (j = 0; j < it; j++) {
+        std::cout << "j = " << j << std::endl;
+        std::cout << "\t" << "x(del) = " << x << std::endl;
+        x += ddel;
+        std::cout << "\t" << "x(ddel) = " << x << std::endl;
+        x += del;
+    }
+
     return 0;
 }
 
@@ -263,7 +291,39 @@ void testPhiInt() {
 }
 
 DLLEXPORT double phiInt(const double r0, const double kap, const double thv, const double sig) {
-    params PS = { kap, thv*TORAD, sig, 0.0, 2.2 };
+    params PS = { kap, thv, sig, 0.0, 2.2 };
     double sumVal = simpsPhi(&PS, r0, 0.0, 2.0*M_PI);
     return sumVal;
 }
+
+DLLEXPORT double intG(double y, double chi, const double k, const double p) {
+    const double bG = (1.0 - p) / 2.0;
+    const double ys = pow(y, 0.5*(bG*(4.0 - k) + 4.0 - 3.0*k));
+    const double chis = pow(chi, (7.0*k - 23.0 + bG*(13.0 + k)) / (6.0*(4.0 - k)));
+    const double fac = pow((7.0 - 2.0*k)*chi*pow(y, 4.0 - k) + 1.0, bG - 2.0);
+    return ys*chis*fac;
+}
+
+DLLEXPORT double fluxG(const double y, const double r0, const double kap, const double thv, const double sig, const double gA, const double k, const double p) {
+    const double Gk = (4.0 - k)*pow(gA, 2.0);
+    double thP0 = thetaPrime(r0, thv, 0.0);
+    double exp0 = pow(thP0 / sig, 2.0*kap);
+    double chiVal = (y - Gk*exp2(-exp0)*pow(tan(thv) + r0, 2.0)) / (pow(y, 5.0 - k));
+    return r0*intG(y, chiVal, k, p)*phiInt(r0, kap, thv, sig);
+}
+
+struct Midpnt : Quadrature {
+    double a, b, s = 0.0;
+    Midpnt(const double aa, const double bb) :
+        a(aa), b(bb) {
+        n = 0;
+    }
+    double next() {
+        int it, j;
+        double x, tnm, sum, del, ddel;
+        n++;
+        if (n == 1) {
+            return (s = (b - a)*fluxG(0.5*(a + b)));
+        }
+    }
+};
