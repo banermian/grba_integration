@@ -23,9 +23,10 @@ void testPhiInt();
 double simpsPhi(params *ps, const double r0, const double a, const double b, const double eps = 1.0e-9);
 DLLEXPORT double phiInt(const double r0, const double kap, const double thv, const double sig);
 DLLEXPORT double intG(double y, double chi, const double k, const double p);
-DLLEXPORT double fluxG(const double y, const double r0, const double kap, const double thv, const double sig, const double gA = 1.0, const double k = 0.0, const double p = 2.2);
-struct Midpnt;
-
+DLLEXPORT double fluxG(const double y, const double r0, params *ps);
+double milneR0(params *ps, const double y, const double a, const double b, const double eps = 1.0e-7);
+void testR0Int();
+//struct Midpnt;
 
 int main(void)
 {
@@ -34,29 +35,31 @@ int main(void)
     // double result = phiInt(0.1, 1.0, 6.0, 2.0);
     // std::cout << result << std::endl;
 
-    int n, it, j;
-    double x, tnm, del, ddel;
-    double a = 0.0, b = 2.0;
+    //int n, it, j;
+    //double x, tnm, del, ddel;
+    //double a = 0.0, b = 2.0;
 
-    std::cout << "Enter the value of n: " << std::endl;
-    std::cin >> n;
+    //std::cout << "Enter the value of n: " << std::endl;
+    //std::cin >> n;
 
-    for (it = 1, j = 1; j < n - 1; j++) {
-        std::cout << j << "\t" << it << std::endl;
-        it *= 3;
-    }
-    tnm = it;
-    del = (b - a) / (3.0*tnm);
-    ddel = del + del;
-    std::cout << del << "\t" << ddel << std::endl;
-    x = a + 0.5*del;
-    for (j = 0; j < it; j++) {
-        std::cout << "j = " << j << std::endl;
-        std::cout << "\t" << "x(del) = " << x << std::endl;
-        x += ddel;
-        std::cout << "\t" << "x(ddel) = " << x << std::endl;
-        x += del;
-    }
+    //for (it = 1, j = 1; j < n - 1; j++) {
+    //    std::cout << j << "\t" << it << std::endl;
+    //    it *= 3;
+    //}
+    //tnm = it;
+    //del = (b - a) / (3.0*tnm);
+    //ddel = del + del;
+    //std::cout << del << "\t" << ddel << std::endl;
+    //x = a + 0.5*del;
+    //for (j = 0; j < it; j++) {
+    //    std::cout << "j = " << j << std::endl;
+    //    std::cout << "\t" << "x(del) = " << x << std::endl;
+    //    x += ddel;
+    //    std::cout << "\t" << "x(ddel) = " << x << std::endl;
+    //    x += del;
+    //}
+
+    testR0Int();
 
     return 0;
 }
@@ -65,6 +68,7 @@ struct params {
     const double KAP;
     const double THV;
     const double SIG;
+    const double GA;
     const double K;
     const double P;
 };
@@ -229,7 +233,7 @@ double simpsPhi(params *ps, const double r0, const double a, const double b, con
             }
         }
 
-        sum = s*h / 3;
+        sum = s*h / 3.0;
         //fprintf(ofile, "#Step %d, n = %d, sum = %e\n", n, it, sum);
         if (n > 3)
             if (std::abs(sum - osum) < eps*std::abs(osum) || (sum == 0.0 && osum == 0.0)) {
@@ -251,7 +255,7 @@ void testRootSolve() {
     std::cin >> R0;
 
     G = R0;
-    params PARAMS = { 1.0, 6.0*TORAD, 2.0, 0.0, 2.2 };
+    params PARAMS = { 1.0, 6.0*TORAD, 2.0, 1.0, 0.0, 2.2 };
 
     std::cout << "Enter desired number of steps: ";
     std::cin >> NSTEPS;
@@ -278,7 +282,7 @@ void testPhiInt() {
     double R0, KAP, THV;
     std::cout << "Enter values (R0, KAP, THV): " << std::endl;
     std::cin >> R0 >> KAP >> THV;
-    params PS = { KAP, THV*TORAD, 2.0, 0.0, 2.2 };
+    params PS = { KAP, THV*TORAD, 2.0, 1.0, 0.0, 2.2 };
     // FILE * ofile;
     // errno_t err;
     // char filename[50];
@@ -291,7 +295,7 @@ void testPhiInt() {
 }
 
 DLLEXPORT double phiInt(const double r0, const double kap, const double thv, const double sig) {
-    params PS = { kap, thv, sig, 0.0, 2.2 };
+    params PS = { kap, thv, sig, 1.0, 0.0, 2.2 };
     double sumVal = simpsPhi(&PS, r0, 0.0, 2.0*M_PI);
     return sumVal;
 }
@@ -304,7 +308,14 @@ DLLEXPORT double intG(double y, double chi, const double k, const double p) {
     return ys*chis*fac;
 }
 
-DLLEXPORT double fluxG(const double y, const double r0, const double kap, const double thv, const double sig, const double gA, const double k, const double p) {
+DLLEXPORT double fluxG(const double y, const double r0, params *ps) {
+    const double kap = ps->KAP;
+    const double sig = ps->SIG;
+    const double thv = ps->THV;
+    const double gA = ps->GA;
+    const double k = ps->K;
+    const double p = ps->P;
+
     const double Gk = (4.0 - k)*pow(gA, 2.0);
     double thP0 = thetaPrime(r0, thv, 0.0);
     double exp0 = pow(thP0 / sig, 2.0*kap);
@@ -312,18 +323,70 @@ DLLEXPORT double fluxG(const double y, const double r0, const double kap, const 
     return r0*intG(y, chiVal, k, p)*phiInt(r0, kap, thv, sig);
 }
 
-struct Midpnt : Quadrature {
-    double a, b, s = 0.0;
-    Midpnt(const double aa, const double bb) :
-        a(aa), b(bb) {
-        n = 0;
-    }
-    double next() {
+double milneR0(params *ps, const double y, const double a, const double b, const double eps) {
+    const int NMAX = 25;
+    double sum, osum = 0.0;
+    for (int n = 2; n < NMAX; n++) {
         int it, j;
-        double x, tnm, sum, del, ddel;
-        n++;
-        if (n == 1) {
-            return (s = (b - a)*fluxG(0.5*(a + b)));
+        double h, s, x1, x2, x3, g, tnm;
+        for (it = 4, j = 1; j < n - 1; j++) it <<= 1;
+        tnm = it;
+        h = (b - a) / tnm;
+        s = 0.0;
+        //g = y;
+        // x = a + h;
+        for (int i = 1; i <= it / 4; i++) {
+            x1 = a + (4 * i - 3)*h;
+            x2 = a + (4 * i - 2)*h;
+            x3 = a + (4 * i - 1)*h;
+
+            s = s + 2.0*fluxG(y, x1, ps) - fluxG(y, x2, ps) + 2.0*fluxG(y, x3, ps);
+
+            //RootFuncPhi rfunc1(x1, y, ps);
+            //RootFuncPhi rfunc2(x2, y, ps);
+            //RootFuncPhi rfunc3(x3, y, ps);
+            //double rp1 = rtnewtPhi(&rfunc1, g, 1.0e-10);
+            //g = rp1;
+            //double rp2 = rtnewtPhi(&rfunc2, g, 1.0e-10);
+            //g = rp2;
+            //double rp3 = rtnewtPhi(&rfunc3, g, 1.0e-10);
+            //g = rp3;
+            //s = s + 2.0*pow(rp1 / y, 2.0) - pow(rp2 / y, 2.0) + 2.0*pow(rp3 / y, 2.0);
         }
+
+        sum = s*h * 4 / 3;
+        std::cout << "n = " << n << ",\tNum Steps = " << it << ",\tSum = " << sum << std::endl;
+        if (std::abs(sum - osum) < eps*std::abs(osum) || (sum == 0.0 && osum == 0.0)) {
+            return sum;
+        }
+        osum = sum;
     }
-};
+    throw("Maximum number of iterations exceeded in milneR0");
+}
+
+void testR0Int() {
+    double Y, KAP, THV;
+    std::cout << "Enter values (Y, KAP, THV): " << std::endl;
+    std::cin >> Y >> KAP >> THV;
+    params PS = { KAP, THV*TORAD, 2.0, 1.0, 0.0, 2.2 };
+    //double phiSum = simpsPhi(&PS, R0, 0.0, 2.0*M_PI);
+    double r0Sum = milneR0(&PS, Y, 0.0, 0.25);
+    std::cout << r0Sum << std::endl;
+    //std::cout << phiSum << "\t" << r0Sum << "\t" << std::abs(r0Sum - phiSum) / phiSum * 100.0 << std::endl;
+}
+
+//struct Midpnt : Quadrature {
+//    double a, b, s = 0.0;
+//    Midpnt(const double aa, const double bb) :
+//        a(aa), b(bb) {
+//        n = 0;
+//    }
+//    double next() {
+//        int it, j;
+//        double x, tnm, sum, del, ddel;
+//        n++;
+//        if (n == 1) {
+//            return (s = (b - a)*fluxG(0.5*(a + b)));
+//        }
+//    }
+//};
