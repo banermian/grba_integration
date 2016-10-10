@@ -386,8 +386,12 @@ double rtsafeR0(RootFuncR0 *func, const double x1, const double x2, const double
     double xl, xh;
     double fl = func->f(x1);
     double fh = func->f(x2);
-    if ((fl > 0.0 && fh > 0.0) || (fl < 0.0 && fh < 0.0))
-        throw("Root must be bracketed in rtsafeR0");
+    if ((fl > 0.0 && fh > 0.0) || (fl < 0.0 && fh < 0.0)) {
+        std::cout << "Root not bracketed in rtsafeR0" << std::endl;
+        std::cout << "fl = " << fl << ", fh = " << fh << std::endl;
+        return -1.0;
+        //throw("Root must be bracketed in rtsafeR0");
+    };
     if (fl == 0.0) return x1;
     if (fh == 0.0) return x2;
     if (fl < 0.0) {
@@ -490,8 +494,8 @@ void testPhiInt() {
     double YVAL;
     std::cout << "Enter y value: " << std::endl;
     std::cin >> YVAL;
-    std::vector<double> KAPPAS = { 0.0, 1.0, 10.0 };
-    std::vector<double> THETAS = { 0.0, 2.0, 6.0 };
+    std::vector<double> KAPPAS = { 0.0 };
+    std::vector<double> THETAS = { 6.0 };
     /*std::cout << "Enter values (R0, KAP, THV): " << std::endl;
     std::cin >> R0 >> KAP >> THV;*/
     for (double KAP : KAPPAS) {
@@ -499,15 +503,20 @@ void testPhiInt() {
             params PS = { KAP, THV*TORAD, 2.0, 1.0, 0.0, 2.2 };
             RootFuncR0 r0func(YVAL, &PS);
             double R0MAX = rtsafeR0(&r0func, 0.0, 0.6, 1.0e-7);
-            double intVal = milneR0(&PS, YVAL, 0.0, R0MAX, 1.0e-5);
-            printf_s("%f\t%f\t%f\n", KAP, THV, intVal);
-            /*double step = R0MAX / 99;
-            printf_s("%f\t%f\t%f\t%f\n", KAP, THV, R0MAX, step);
-            for (int i = 1; i < 100; i++) {
-                double R0 = i*step;
-                double sumVal = simpsPhi(&PS, R0, 0.0, 2.0*M_PI);
-                printf_s("%d\t%f\t%f\n", i, R0, sumVal);
-            }*/
+            double intVal;
+            if (R0MAX < 0.0)
+                intVal = 0.0;
+            else {
+                intVal = milneR0(&PS, YVAL, 0.0, R0MAX, 1.0e-5);
+                printf_s("%f\t%f\t%f\n", KAP, THV, intVal);
+                double step = R0MAX / 99;
+                printf_s("%f\t%f\t%f\t%f\n", KAP, THV, R0MAX, step);
+                for (int i = 1; i < 100; i++) {
+                    double R0 = i*step;
+                    double sumVal = simpsPhi(&PS, R0, 0.0, 2.0*M_PI);
+                    printf_s("%d\t%f\t%f\n", i, R0, sumVal);
+                }
+            }
         }
     }
     //params PS = { KAP, THV*TORAD, 2.0, 1.0, 0.0, 2.2 };
