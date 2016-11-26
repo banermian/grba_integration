@@ -1,16 +1,19 @@
 import sys
-from ctypes import *
-from scipy.optimize import fsolve, brentq
-from scipy.integrate import nquad, quad, romberg, quadrature
-from math import radians, degrees
 import numpy as np
 import pandas as pd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import seaborn as sns
-sns.set_style("whitegrid")
 
-TINY = 1.0e-5
+from ctypes import *
+from scipy.optimize import root, fsolve, brentq
+from scipy.integrate import nquad, quad, romberg, quadrature
+from math import radians, degrees
+
+sns.set_style("whitegrid")
+plt.style.use('ggplot')
+
+TINY = 1.0e-9
 
 grbaint = cdll.LoadLibrary("Release/grba_integration.dll")
 phiInt = grbaint.phiInt
@@ -44,6 +47,54 @@ def thetaPrime(r, thv, phi):
     # return np.divide(top, bot)
     return thp(r, thv, phi)
 
+def r0_max(y, kap, sig, thv, gA = 1.0, k = 0.0, p = 2.2):
+    Gk = (4.0 - k)*gA**2.0
+    def rootR0(rm):
+        thP0 = thetaPrime(rm, thv, 0.0)
+        rExp = -np.power(np.divide(thP0, sig), 2.0*kap)
+        lhs = np.divide(y - np.power(y, 5.0 - k), Gk)
+        rhs = (np.tan(thv) + rm)**2.0*np.exp2(rExp)
+        return rhs - lhs
+
+    rootValR0 = fsolve(rootR0, 1.0e-5)[0]
+    # rootValR0 = brentq(root, 0.0, 0.6)
+    return rootValR0
+
+def root_fun(r, r0, phi, kap, sig, thv):
+    thp = thetaPrime(r, thv, phi)
+    eng = engProf(thp, sig, kap)
+    lhs = eng*(np.power(r, 2.0) + 2.0*r*np.tan(thv)*np.cos(phi) + np.power(np.tan(thv), 2.0))
+    thp0 = thetaPrime(r, thv, 0.0)
+    eng0 = engProf(thp0, sig, kap)
+    rhs = np.power(r0 + np.tan(thv), 2.0)*eng0
+    return lhs - rhs
+
+def root_jac(r, r0, phi, kap, sig, thv):
+    thp = thetaPrime(r, thv, phi)
+    first = r + np.tan(thv)*np.cos(phi)
+    second = np.power(r, 2.0) + 2.0*r*np.tan(thv)*np.cos(phi) + np.power(np.tan(thv), 2.0)
+    frac = (kap*np.log(2.0)*np.power(thp / sig, 2.0*kap)) / (r*(1.0 + 0.5*r*np.sin(2.0*thv)*np.cos(phi)))
+    exponent = 2.0*engProf(thp, sig, kap)
+    return (first - second*frac)*exponent
+
+def solveR(r0, phi, kap, sig, thv):
+    return root(root_fun, r0, args = (r0, phi, kap, sig, thv), jac=root_jac).x[0]
+
+def phiUpperBound(r0, kap, sig, thv):
+    s = np.frompyfunc(solveR, 5, 1)
+    R0P_MAX = s(r0, np.pi, kap, sig, thv)
+    return R0P_MAX
+
+def test_rmax():
+    R0 = 0.1
+    PHI = radians(180.0)
+    SIGMA = 2.0
+    for KAPPA in [0.0, 1.0, 10.0]:
+        for THV in [0.0, 2.0, 6.0]:
+            THETA_V = radians(THV)
+            sol = solveR(R0, PHI, KAPPA, SIGMA, THETA_V)
+            print KAPPA, THV, sol.x
+
 def r_max(phi, r0, kap, sig, thv):
     def rootR(r):
         thp = thetaPrime(r, thv, phi)
@@ -56,19 +107,6 @@ def r_max(phi, r0, kap, sig, thv):
     
     rootValR = fsolve(rootR, r0)[0]
     return rootValR
-
-def r0_max(y, kap, sig, thv, gA = 1.0, k = 0.0, p = 2.2):
-    Gk = (4.0 - k)*gA**2.0
-    def rootR0(rm):
-        thP0 = thetaPrime(rm, thv, 0.0)
-        rExp = -np.power(np.divide(thP0, sig), 2.0*kap)
-        lhs = np.divide(y - np.power(y, 5.0 - k), Gk)
-        rhs = (np.tan(thv) + rm)**2.0*np.exp2(rExp)
-        return rhs - lhs
-
-    rootValR0 = fsolve(rootR0, 1.0e-3)[0]
-    # rootValR0 = brentq(root, 0.0, 0.6)
-    return rootValR0
 
 def r0_max_val(r, y, kap, sig, thv, gA = 1.0, k = 0.0, p = 2.2):
     Gk = (4.0 - k)*gA**2.0
@@ -264,40 +302,75 @@ def r0_integral():
 
 def plot_rMaxPhi_grid(y, kap, sig, thv):
     R0_MAX = r0_max(y, kap, sig, thv)
-    r0s = np.linspace(0.0, R0_MAX, num = 100)
+    # r0s = np.linspace(0.1, R0_MAX, num = 100)
+    # r0s[0] += TINY
+    r0s = np.linspace(R0_MAX, 0.0, endpoint = False, num = 100)
     phis = np.linspace(0.0, 2.0*np.pi, num = 100)
-    vec_r_max = np.vectorize(r_max)
-    rs = vec_r_max(phis, r0s, kap, sig, thv)
+    # vec_r_max = np.vectorize(r_max)
+    # rs = vec_r_max(phis, r0s, kap, sig, thv)
     R, P = np.meshgrid(r0s, phis)
-    RM = vec_r_max(P, R, kap, sig, thv)
-    RNORM = np.divide(RM, r0s)
+    # RM = vec_r_max(P, R, kap, sig, thv)
+    s = np.frompyfunc(solveR, 5, 1)
+    
+    RM = np.abs(s(R, P, kap, sig, thv))
+    # print RM
+    RNORM = np.power(np.divide(RM, r0s), 2.0)
     # df = pd.DataFrame(data = {'r0': r0s, 'phi': phis, 'r': rs})
     # df_piv = df.pivot(index = 'phi', columns = 'r0', values = 'r')
     # print df_piv.head()
-    df = pd.DataFrame(data = RNORM, index = np.round(np.divide(phis, np.pi), decimals = 1), columns = np.round(r0s, decimals = 3))
-    ax = sns.heatmap(df, xticklabels = 10, yticklabels = 25)
+    df = pd.DataFrame(data = RM, index = np.round(np.divide(phis, np.pi), decimals = 3), columns = np.round(r0s, decimals = 3))
+    df = df[df.columns].astype(float)
+    # print df.head()
+    ax = sns.heatmap(df, xticklabels = 10, yticklabels = 25, robust = True)
+    ax.invert_xaxis()
+    ax.invert_yaxis()
     plt.xticks(rotation = 90)
     plt.show()
+    plt.clf()
     
     # plt.figure()
     # plt.pcolormesh(R, P, RM)
     # plt.show()
+
+def plot_r0Phi(r0, kap, sig, thv):
+    s = np.frompyfunc(solveR, 5, 1)
+    phis = np.linspace(0.0, 2.0*np.pi, 100)
+    vals = np.power(np.divide(s(r0, phis, kap, sig, thv), r0), 2.0)
+    dat = pd.DataFrame(data = {'phi': r0s, 'fPhi': vals})
+    NUM_ROWS = len(dat)
+    dat['y'] = np.repeat(y, NUM_ROWS)
+    dat['kap'] = np.repeat(kap, NUM_ROWS)
+    dat['thv'] = np.repeat(thv, NUM_ROWS)
+    # print data.head()
+    return(dat)
 
 def main():
     tiny = np.power(10.0, -3.0)
     SIGMA = 2.0
     KAPPA = 0.0
     THETA_V = radians(2.0)
-    YVAL = 0.9
-    
+    YVAL = 0.1
+    plt.figure()
     for KAP in [0.0, 1.0, 10.0]:
-        for THV in [0.0, 2.0, 6.0]:
-            # R0MAX = r0_max(YVAL, KAP, SIGMA, radians(THV))
-            # step = np.linspace(0.0, R0MAX, num = 100, retstep = True)[1]
-            # print KAP, THV, R0MAX, step
-    
-            plot_rMaxPhi_grid(YVAL, KAP, SIGMA, radians(THV))
-    
+        for THV in [1.0, 2.0, 6.0]:
+            R0MAX = r0_max(YVAL, KAP, SIGMA, radians(THV))
+            r0s = np.linspace(0.0, R0MAX, num = 10)
+            r0s[0] = TINY
+            phis = np.linspace(0.0, 2.0*np.pi, num = 10)
+            R, P = np.meshgrid(r0s, phis)
+            s = np.frompyfunc(solveR, 5, 1)
+            RM = s(R, P, KAP, SIGMA, radians(THV))
+            
+            r0Maxs = np.amax(RM, axis = 1)
+            # r0Maxs = phiUpperBound(r0s, KAP, SIGMA, radians(THV))
+            
+            plt.plot(r0s, r0Maxs, label = "kap = {a: 04.1f}, thv = {b: 3.1f}".format(a = KAP, b = THV))
+            plt.legend()
+            # vals = np.linspace(R0MAX, 0.0, endpoint = False, num = 100, retstep = True)
+            # print KAP, THV, R0MAX, vals[1], vals[0]
+            # plot_rMaxPhi_grid(YVAL, KAP, SIGMA, radians(THV))
+    print RM[:, 1]
+    plt.show()
     # plot_r0Int_grid()
     # plot_r0Int_grid_cTest(0.9)
     # r0_integral()
@@ -323,3 +396,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(int(main() or 0))
+    # test_rmax()

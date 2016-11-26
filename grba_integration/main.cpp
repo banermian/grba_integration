@@ -109,6 +109,60 @@ double rtnewtPhi(RootFuncPhi *func, const double g, const double xacc) {
     throw("Maximum number of iterations exceeded in rtnewt");
 }
 
+double rtsafePhi(RootFuncPhi *func, const double x1, const double x2, const double xacc) {
+    const int MAXIT = 100;
+    double xl, xh;
+    double fl = func->f(x1);
+    double fh = func->f(x2);
+    //printf_s("x1 = %f, x2 = %f\n", x1, x2);
+    if ((fl > 0.0 && fh > 0.0) || (fl < 0.0 && fh < 0.0)) {
+        std::cout << "Root must be bracketed in rtsafePhi" << std::endl;
+        printf_s("xl = %f, fl = %f, xh = %f, fh = %f\n", x1, fl, x2, fh);
+        throw("Root must be bracketed in rtsafePhi");
+    }
+    if (fl == 0.0) return x1;
+    if (fh == 0.0) return x2;
+    if (fl < 0.0) {
+        xl = x1;
+        xh = x2;
+    }
+    else {
+        xh = x1;
+        xl = x2;
+    }
+    double rts = 0.5*(x1 + x2);
+    double dxold = std::abs(x2 - x1);
+    double dx = dxold;
+    double f = func->f(rts);
+    double df = func->df(rts);
+    int j;
+    for (j = 0; j < MAXIT; j++) {
+        if ((((rts - xh)*df - f)*((rts - xl)*df - f) > 0.0)
+            || (std::abs(2.0*f) > std::abs(dxold*df))) {
+            dxold = dx;
+            dx = 0.5*(xh - xl);
+            rts = xl + dx;
+            if (xl == rts) return rts;
+        }
+        else {
+            dxold = dx;
+            dx = f / df;
+            double temp = rts;
+            rts -= dx;
+            if (temp == rts) return rts;
+        }
+        if (std::abs(dx) < xacc) return rts;
+        f = func->f(rts);
+        df = func->df(rts);
+        if (f < 0.0)
+            xl = rts;
+        else
+            xh = rts;
+    }
+    std::cout << "rtsafePhi did not converge. Ended with j = " << j << " , and root = " << rts << std::endl;
+    throw("Maximum number of iterations exceeded in rtsafePhi");
+}
+
 //template <class T>
 //std::pair <double, int> rtnewtAlpha(T &func, const double g, const double xacc) {
 //std::pair <double, int> rtnewtAlpha(RootFuncPhi *func, const double g, const double xacc) {
@@ -433,60 +487,6 @@ double rtsafeR0(RootFuncR0 *func, const double x1, const double x2, const double
     }
     std::cout << "rtsafeR0 did not converge. Ended with j = " << j << " , and root = " << rts << std::endl;
     throw("Maximum number of iterations exceeded in rtsafeR0");
-}
-
-double rtsafePhi(RootFuncPhi *func, const double x1, const double x2, const double xacc) {
-    const int MAXIT = 100;
-    double xl, xh;
-    double fl = func->f(x1);
-    double fh = func->f(x2);
-    //printf_s("x1 = %f, x2 = %f\n", x1, x2);
-    if ((fl > 0.0 && fh > 0.0) || (fl < 0.0 && fh < 0.0)) {
-        std::cout << "Root must be bracketed in rtsafePhi" << std::endl;
-        printf_s("xl = %f, fl = %f, xh = %f, fh = %f\n", x1, fl, x2, fh);
-        throw("Root must be bracketed in rtsafePhi");
-    }
-    if (fl == 0.0) return x1;
-    if (fh == 0.0) return x2;
-    if (fl < 0.0) {
-        xl = x1;
-        xh = x2;
-    }
-    else {
-        xh = x1;
-        xl = x2;
-    }
-    double rts = 0.5*(x1 + x2);
-    double dxold = std::abs(x2 - x1);
-    double dx = dxold;
-    double f = func->f(rts);
-    double df = func->df(rts);
-    int j;
-    for (j = 0; j < MAXIT; j++) {
-        if ((((rts - xh)*df - f)*((rts - xl)*df - f) > 0.0)
-            || (std::abs(2.0*f) > std::abs(dxold*df))) {
-            dxold = dx;
-            dx = 0.5*(xh - xl);
-            rts = xl + dx;
-            if (xl == rts) return rts;
-        }
-        else {
-            dxold = dx;
-            dx = f / df;
-            double temp = rts;
-            rts -= dx;
-            if (temp == rts) return rts;
-        }
-        if (std::abs(dx) < xacc) return rts;
-        f = func->f(rts);
-        df = func->df(rts);
-        if (f < 0.0)
-            xl = rts;
-        else
-            xh = rts;
-    }
-    std::cout << "rtsafePhi did not converge. Ended with j = " << j << " , and root = " << rts << std::endl;
-    throw("Maximum number of iterations exceeded in rtsafePhi");
 }
 
 void testPhiInt() {
