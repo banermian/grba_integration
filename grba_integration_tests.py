@@ -9,9 +9,28 @@ from ctypes import *
 from scipy.optimize import root, fsolve, brentq
 from scipy.integrate import nquad, quad, romberg, quadrature
 from math import radians, degrees
+from cycler import cycler
 
-sns.set_style("whitegrid")
-plt.style.use('ggplot')
+# n = 10
+# colors = [plt.get_cmap('Blues')(1. * i/n) for i in range(n)]
+# mpl.rcParams['axes.prop_cycle'] = cycler('color', colors)
+# mpl.rcParams['axes.prop_cycle'] = cycler('color', ['r', 'g', 'b'])
+# mpl.rcParams['image.cmap']='Blues'
+# mpl.rcParams['axes.prop_cycle'] =  cycler('color', ['#b1c4e2', '#1f57a2', '#1e477b', '#062a5a', '#161928'])
+mpl.rcParams['font.family'] = 'sans-serif'
+mpl.rcParams['font.sans-serif'] = 'Helvetica Neue UltraLight'
+mpl.rcParams['font.variant'] = 'small-caps'
+mpl.rcParams['font.size'] = 21
+mpl.rcParams['axes.labelsize'] = 13
+mpl.rcParams['axes.titlesize'] = 11
+mpl.rcParams['xtick.labelsize'] = 9
+mpl.rcParams['ytick.labelsize'] = 9
+mpl.rcParams['legend.fontsize'] =7
+mpl.rcParams['figure.titlesize'] = 17
+mpl.rcParams['legend.numpoints'] = 1
+
+# plt.style.use('seaborn-whitegrid')
+sns.set_style('ticks', {'legend.frameon': True})
 
 TINY = 1.0e-9
 
@@ -77,8 +96,8 @@ def root_jac(r, r0, phi, kap, sig, thv):
     exponent = 2.0*engProf(thp, sig, kap)
     return (first - second*frac)*exponent
 
-def solveR(r0, phi, kap, sig, thv):
-    return root(root_fun, r0, args = (r0, phi, kap, sig, thv), jac=root_jac).x[0]
+def solveR(g, r0, phi, kap, sig, thv):
+    return root(root_fun, g, args = (r0, phi, kap, sig, thv), jac=root_jac).x[0]
 
 def phiUpperBound(r0, kap, sig, thv):
     s = np.frompyfunc(solveR, 5, 1)
@@ -92,8 +111,8 @@ def test_rmax():
     for KAPPA in [0.0, 1.0, 10.0]:
         for THV in [0.0, 2.0, 6.0]:
             THETA_V = radians(THV)
-            sol = solveR(R0, PHI, KAPPA, SIGMA, THETA_V)
-            print KAPPA, THV, sol.x
+            sol = solveR(R0, R0, PHI, KAPPA, SIGMA, THETA_V)
+            print KAPPA, THV, sol
 
 def r_max(phi, r0, kap, sig, thv):
     def rootR(r):
@@ -349,29 +368,76 @@ def main():
     SIGMA = 2.0
     KAPPA = 0.0
     THETA_V = radians(2.0)
-    YVAL = 0.1
-    plt.figure()
-    for KAP in [0.0, 1.0, 10.0]:
-        for THV in [1.0, 2.0, 6.0]:
-            R0MAX = r0_max(YVAL, KAP, SIGMA, radians(THV))
-            r0s = np.linspace(0.0, R0MAX, num = 10)
-            r0s[0] = TINY
-            phis = np.linspace(0.0, 2.0*np.pi, num = 10)
-            R, P = np.meshgrid(r0s, phis)
-            s = np.frompyfunc(solveR, 5, 1)
-            RM = s(R, P, KAP, SIGMA, radians(THV))
-            
-            r0Maxs = np.amax(RM, axis = 1)
-            # r0Maxs = phiUpperBound(r0s, KAP, SIGMA, radians(THV))
-            
-            plt.plot(r0s, r0Maxs, label = "kap = {a: 04.1f}, thv = {b: 3.1f}".format(a = KAP, b = THV))
-            plt.legend()
-            # vals = np.linspace(R0MAX, 0.0, endpoint = False, num = 100, retstep = True)
-            # print KAP, THV, R0MAX, vals[1], vals[0]
-            # plot_rMaxPhi_grid(YVAL, KAP, SIGMA, radians(THV))
-    print RM[:, 1]
-    plt.show()
-    # plot_r0Int_grid()
+    YVAL = 0.05
+    # plt.figure()
+    for YVAL in [0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.99]:
+    # for YVAL in [0.5]:
+        ps = []
+        fs = []
+        rs = []
+        ks = []
+        ts = []
+        cs = []
+        for KAP in [0.0, 1.0, 10.0]:
+            for THV in [1.0, 2.0, 6.0]:
+                THETA_V = radians(THV)
+                R0MAX = r0_max(YVAL, KAP, SIGMA, radians(THV))
+                r0s = np.linspace(0.0, R0MAX, num = 9)
+                r0s[0] = TINY
+                phis = np.linspace(0.0, 2.0*np.pi, num = 100)
+                # R, P = np.meshgrid(r0s, phis)
+                # s = np.frompyfunc(solveR, 5, 1)
+                # RM = s(R, P, KAP, SIGMA, radians(THV))
+                # r0Maxs = np.amax(RM, axis = 1)
+                # r0Maxs = phiUpperBound(r0s, KAP, SIGMA, radians(THV))
+                # plt.plot(r0s, r0Maxs, label = "kap = {a: 04.1f}, thv = {b: 3.1f}".format(a = KAP, b = THV))
+                # plt.legend()
+                # vals = np.linspace(R0MAX, 0.0, endpoint = False, num = 100, retstep = True)
+                # print KAP, THV, R0MAX, vals[1], vals[0]
+                # plot_rMaxPhi_grid(YVAL, KAP, SIGMA, radians(THV))
+                for c, R0 in enumerate(r0s):
+                    G = R0
+                    for PHI in phis:
+                        RP = solveR(G, R0, PHI, KAP, SIGMA, THETA_V)
+                        G = RP
+                        F = np.log10(np.power(np.divide(RP, R0), 2.0))
+                        ps.append(PHI/np.pi)
+                        rs.append(R0)
+                        fs.append(F)
+                        ks.append(KAP)
+                        ts.append(THV)
+                        cs.append(c)
+        
+        data = [ps, rs, ks, ts, fs, cs]
+        df = pd.DataFrame(data)
+        df = df.transpose()
+        cols = ['Phi', 'R0P', 'Kappa', 'ThetaV', 'FPhi', 'C']
+        df.columns = cols
+        df = df.round({'R0P': 3})
+        g = sns.FacetGrid(df, col='Kappa', row='ThetaV', hue='C',
+                                xlim=(0,2),
+                                palette = sns.color_palette("Spectral", n_colors=9)) #ylim=(0,2),
+        g.map(plt.plot, "Phi", "FPhi", lw = 1)
+        # g = sns.factorplot(x="Phi", y="FPhi", hue="C", row="ThetaV", col="Kappa",
+                            # data=df, palette = sns.color_palette("Blues", n_colors=len(r0s)))
+        g.set_axis_labels(r"$\phi [\pi]$", r"$Log f^2(\phi) = Log (r'/r_0')^2$")
+        for i in range(len(g.fig.get_axes())):
+            handles, labels = g.fig.get_axes()[i].get_legend_handles_labels()
+            thv_val = float(g.fig.get_axes()[i].get_title().split('|')[0].split('=')[1].strip())
+            kap_val = float(g.fig.get_axes()[i].get_title().split('|')[1].split('=')[1].strip())
+            # print kap_val, thv_val
+            labs = [df.groupby(['Kappa', 'ThetaV', 'C']).get_group((kap_val, thv_val, float(lab)))['R0P'].unique()[0] for lab in labels]
+            g.fig.get_axes()[i].legend(handles, labs,
+                                                loc='upper right', 
+                                                bbox_to_anchor=(1.2, 1.0))
+        g.set_titles(r"$\kappa = {col_name}$ | $\theta_V = {row_name}$")
+        plt.suptitle(r"$y={a} | r'_{{0,min}}={b}$".format(a=YVAL, b=TINY))
+        g.fig.subplots_adjust(top=.9)
+        plt.show()
+        # plt.savefig("rPrime-phi_profiles(y={a}_r0'min={b}).pdf".format(a=YVAL, b=TINY), format="pdf", dpi=1200)
+
+
+   # plot_r0Int_grid()
     # plot_r0Int_grid_cTest(0.9)
     # r0_integral()
 
