@@ -160,23 +160,28 @@ def main():
     ts = []
     rs = []
     vs = []
-    # for YVAL in [TINY, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0 - TINY]:
-    for YVAL in [0.5]:
+    for YVAL in [TINY, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0 - TINY]:
+    # for YVAL in [0.5]:
         for KAP in [0.0, 1.0, 10.0]:
             for THV in [0.0, 1.0, 2.0, 6.0]:
+                print YVAL, KAP, THV
                 THETA_V = radians(THV)
                 R0MAX = r0_max(YVAL, KAP, SIGMA,THETA_V)
                 if R0MAX > 0.0:
                     grb = GrbaIntegrator(KAP, THETA_V, SIGMA, 1.0, 0.0, 2.2)
                     r0s = np.linspace(0.0, R0MAX, num = 2**order + 1)
-                    vals = []
-                    vals.append(0.0)
+                    # vals = []
+                    # vals.append(0.0)
                     for R0 in r0s[1:]:
                         val = grb.r0_integrand(YVAL, R0)
-                        vals.append(val)
+                        val_c = grb.r0_integrand_c(YVAL, R0)
+                        err = np.abs(val - val_c) / val_c * 100.0
+                        if err > 1.0e-11:
+                            print YVAL, KAP, THV, R0, err
+                        # vals.append(val)
                     
-                    val = simps(vals, r0s)
-                    print YVAL, KAP, THV, val
+                    # val = simps(vals, r0s)
+                    # print YVAL, KAP, THV, val
                     # r0s[0] = TINY
                     # for R0 in r0s:
                         # val = grb.simps_phi(R0) / np.pi
@@ -209,7 +214,7 @@ def main():
     # g.fig.get_axes()[6].set_xlabel('')
     # g.fig.get_axes()[8].set_xlabel('')
     # # plt.show()
-    # plt.savefig("phiIntegrand(r0'min={a})".format(a=TINY), format="pdf", dpi=1200)
+    # plt.savefig("phiIntegrand(r0'min={a}).pdf".format(a=TINY), format="pdf", dpi=1200)
 
 if __name__ == "__main__":
     # test_rP_roots()
