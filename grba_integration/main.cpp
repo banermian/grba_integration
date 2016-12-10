@@ -12,22 +12,19 @@ struct params;
 DLLEXPORT double thetaPrime(double r, double thv, double phi);
 DLLEXPORT double energyProfile(double thp, double sig, double kap);
 struct RootFuncPhi;
+double rtnewtPhi(RootFuncPhi& func, const double g, const double xacc);
+double rtsafePhi(RootFuncPhi *func, const double x1, const double x2, const double xacc);
 void testRootSolve();
-double rtnewtPhi(RootFuncPhi *func, const double g, const double xacc);
-double rtnewtAlpha(RootFuncPhi *func, const double g, const double xacc);
-struct Quadrature;
-struct TrapzdPhi;
-void testPhiInt();
 double simpsPhi(params *ps, const double r0, const double a, const double b, const double eps = 1.0e-9);
 DLLEXPORT double phiInt(const double r0, const double kap, const double thv, const double sig);
 double intG(double y, double chi, const double k, const double p);
 DLLEXPORT double fluxG(params *ps, const double y, const double r0);
 DLLEXPORT double fluxWrap(double y, double r0, const double kap, const double sig, const double thv, const double gA, const double k, const double p);
+void testPhiInt();
 double milneR0(params *ps, const double y, const double a, const double b, const double eps = 1.0e-7);
 void testR0Int();
 struct RootFuncR0;
 double rtsafeR0(RootFuncR0 *func, const double x1, const double x2, const double xacc);
-double rtsafePhi(RootFuncPhi *func, const double x1, const double x2, const double xacc);
 
 int main(void)
 {
@@ -35,7 +32,7 @@ int main(void)
     //testPhiInt();
     // double result = phiInt(0.1, 1.0, 6.0, 2.0);
     // std::cout << result << std::endl;
-    // testR0Int();
+    testR0Int();
 
     return 0;
 }
@@ -84,13 +81,13 @@ struct RootFuncPhi
     }
 };
 
-double rtnewtPhi(RootFuncPhi *func, const double g, const double xacc) {
+double rtnewtPhi(RootFuncPhi& func, const double g, const double xacc) {
     const int JMAX = 20;
     int j;
     double root = g;
     for (j = 0; j < JMAX; j++) {
-        double f = func->f(root);
-        double df = func->df(root);
+        double f = func.f(root);
+        double df = func.df(root);
         double dx = f / df;
         root -= dx;
         if (std::abs(dx) < xacc) {
@@ -154,76 +151,6 @@ double rtsafePhi(RootFuncPhi *func, const double x1, const double x2, const doub
     throw("Maximum number of iterations exceeded in rtsafePhi");
 }
 
-struct Quadrature {
-    int n;
-    virtual double next() = 0;
-};
-
-struct TrapzdPhi : Quadrature {
-    const double a, b, r0;
-    double s = 0, g;
-    params *p;
-    TrapzdPhi(params *pp, const double R0, const double aa, const double bb) :
-        p(pp), r0(R0), a(aa), b(bb) {
-        n = 1;
-    }
-    double next() {
-        double x, tnm, sum, del;
-        int it, j;
-        n++;
-        for (it = 1, j = 1; j < n - 1; j++) it <<= 1;
-        tnm = it;
-        del = (b - a) / tnm;
-        x = 0.0;
-        g = r0;
-        for (sum = 0.0, j = 0; j <= it; j++, x += del) {
-            RootFuncPhi rfunc(x, r0, p);
-            double rp = rtnewtPhi(&rfunc, g, 1.0e-11);
-            g = rp;
-            sum += pow(rp / r0, 2.0);
-        }
-        s = 0.5*(s + (b - a)*sum / tnm);;
-        return s;
-    }
-};
-
-double simpsPhi(params *ps, const double r0, const double a, const double b, const double eps) {
-    const int NMAX = 25;
-    double sum, osum = 0.0;
-    for (int n = 6; n < NMAX; n++) {
-        int it, j;
-        double h, s, x, g, tnm;
-        for (it = 2, j = 1; j<n - 1; j++) it <<= 1;
-        tnm = it;
-        h = (b - a) / tnm;
-        s = 2.0;
-        g = r0;
-        x = a;
-        for (int i = 1; i < it; i++, x += h) {
-            RootFuncPhi rfunc(x, r0, ps);
-            double rp = rtnewtPhi(&rfunc, g, 1.0e-9);
-            //double rp = rtsafePhi(&rfunc, 0.9*g, 10.0*g, 1.0e-9);
-            g = rp;
-            double fx = pow(rp / r0, 2.0);
-            if (i % 2) {
-                s += 4.0*fx;
-            }
-            else {
-                s += 2.0*fx;
-            }
-        }
-
-        sum = s*h / 3.0;
-        if (n > 3)
-            if (std::abs(sum - osum) < eps*std::abs(osum) || (sum == 0.0 && osum == 0.0)) {
-                //std::cout << "n = " << n << ",\tNum Steps = " << it << ",\tSum = " << sum << std::endl;
-                return sum;
-            }
-        osum = sum;
-    }
-    throw("Maximum number of iterations exceeded in simpsPhi");
-}
-
 void testRootSolve() {
     double G;
     int NSTEPS;
@@ -253,6 +180,43 @@ void testRootSolve() {
         //std::cout << G << std::endl;
     }
     fclose(ofile);
+}
+
+double simpsPhi(params *ps, const double r0, const double a, const double b, const double eps) {
+    const int NMAX = 25;
+    double sum, osum = 0.0;
+    for (int n = 6; n < NMAX; n++) {
+        int it, j;
+        double h, s, x, g, tnm;
+        for (it = 2, j = 1; j<n - 1; j++) it <<= 1;
+        tnm = it;
+        h = (b - a) / tnm;
+        s = 2.0;
+        g = r0;
+        x = a;
+        for (int i = 1; i < it; i++, x += h) {
+            RootFuncPhi rfunc(x, r0, ps);
+            double rp = rtnewtPhi(rfunc, g, 1.0e-9);
+            //double rp = rtsafePhi(&rfunc, 0.9*g, 10.0*g, 1.0e-9);
+            g = rp;
+            double fx = pow(rp / r0, 2.0);
+            if (i % 2) {
+                s += 4.0*fx;
+            }
+            else {
+                s += 2.0*fx;
+            }
+        }
+
+        sum = s*h / 3.0;
+        if (n > 3)
+            if (std::abs(sum - osum) < eps*std::abs(osum) || (sum == 0.0 && osum == 0.0)) {
+                //std::cout << "n = " << n << ",\tNum Steps = " << it << ",\tSum = " << sum << std::endl;
+                return sum;
+            }
+        osum = sum;
+    }
+    throw("Maximum number of iterations exceeded in simpsPhi");
 }
 
 DLLEXPORT double phiInt(const double r0, const double kap, const double thv, const double sig) {
