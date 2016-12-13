@@ -4,7 +4,7 @@ from ctypes import cdll, c_double
 
 class GrbaIntegrator(object):
     def __init__(self, kap, thv, sig, gA, k, p):
-        grbaint = cdll.LoadLibrary("Release/grba_integration.dll")
+        grbaint = cdll.LoadLibrary("Debug/grba_integration.dll")
         thetaPrime = grbaint.thetaPrime
         thetaPrime.restype = c_double
         thetaPrime.argtypes = [c_double, c_double, c_double]
@@ -75,16 +75,17 @@ class GrbaIntegrator(object):
             
             osum = sum
      
-    def r0_integrand(self, y, r0):
+    def _r0_integrand(self, y, r0):
         Gk = (4.0 - self.k)*self.gA**2.0
-        thP0 = self.thetaPrime(r0, self.thv, 0.0)
+        thP0 = self.thetaPrime(r0 / y, self.thv, 0.0)
         exp0 = np.power(np.divide(thP0, self.sig), 2.0*self.kap)
-        chiVal = np.divide(y - Gk*np.exp2(-exp0)*(np.tan(self.thv) + r0)**2.0, np.power(y, 5.0 - self.k))
+        chiVal = np.divide(y - Gk*np.exp2(-exp0)*(np.tan(self.thv) + r0 / y)**2.0, np.power(y, 5.0 - self.k))
         bG = (1.0 - self.p)/2.0
         ys = np.power(y, 0.5*(bG*(4.0 - self.k) + 4.0 - 3.0*self.k))
         chis = np.power(chiVal, np.divide(7.0*self.k - 23.0 + bG*(13.0 + self.k), 6.0*(4.0 - self.k)))
         factor = np.power((7.0 - 2.0*self.k)*chiVal*np.power(y, 4.0 - self.k) + 1.0, bG - 2.0)
-        return r0*ys*chis*factor*self.simps_phi(r0)
+        return r0*ys*chis*factor*self.simps_phi(r0 / y)
     
-    def r0_integrand_c(self, y, r0):
-        return self.simps_phi(r0)*self.fluxG(y, r0, self.kap, self.sig, self.thv, self.gA, self.k, self.p)
+    def _r0_integrand_c(self, y, r0):
+        return self.fluxG(y, r0, self.kap, self.sig, self.thv, self.gA, self.k, self.p)
+    

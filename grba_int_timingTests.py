@@ -152,13 +152,19 @@ def root_test():
         plt.savefig("rPrime_Root_Timing(y={a}_r0'min={b}).pdf".format(a=YVAL, b=TINY), format="pdf", dpi=1200)
 
 def main():
-    order = 6
+    def vertical_line(x, **kwargs):
+        uniques = x.unique()
+        for x in np.nditer(uniques):
+            plt.axvline(x = x, **kwargs)
+    
+    order = 5
     TINY = 1.0e-3
     SIGMA = 2.0
     ys = []
     ks = []
     ts = []
     rs = []
+    rms = []
     vs = []
     for YVAL in [TINY, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0 - TINY]:
     # for YVAL in [0.5]:
@@ -169,52 +175,59 @@ def main():
                 R0MAX = r0_max(YVAL, KAP, SIGMA,THETA_V)
                 if R0MAX > 0.0:
                     grb = GrbaIntegrator(KAP, THETA_V, SIGMA, 1.0, 0.0, 2.2)
-                    r0s = np.linspace(0.0, R0MAX, num = 2**order + 1)
+                    r0s = np.linspace(0.0, R0MAX, 100)  # num = 2**order + 1
                     # vals = []
                     # vals.append(0.0)
-                    for R0 in r0s[1:]:
-                        val = grb.r0_integrand(YVAL, R0)
-                        val_c = grb.r0_integrand_c(YVAL, R0)
-                        err = np.abs(val - val_c) / val_c * 100.0
-                        if err > 1.0e-11:
-                            print YVAL, KAP, THV, R0, err
+                    # for R0 in r0s[1:]:
+                        # val = grb._r0_integrand(YVAL, R0)
+                        # val_c = grb._r0_integrand_c(YVAL, R0)
+                        # err = np.abs(val - val_c) / val_c * 100.0
+                        # if err > 1.0e-11:
+                            # print YVAL, KAP, THV, R0, err
                         # vals.append(val)
                     
                     # val = simps(vals, r0s)
                     # print YVAL, KAP, THV, val
-                    # r0s[0] = TINY
-                    # for R0 in r0s:
+                    r0s[0] = TINY
+                    for R0 in r0s:
                         # val = grb.simps_phi(R0) / np.pi
-                        # val = grb.r0_integrand(YVAL, R0)
-                        # ys.append(YVAL)
-                        # ks.append(KAP)
-                        # ts.append(THV)
-                        # rs.append(R0)
-                        # vs.append(val)
+                        val = grb._r0_integrand(YVAL, R0)
+                        # val = R0**2.0
+                        ys.append(YVAL)
+                        ks.append(KAP)
+                        ts.append(THV)
+                        rs.append(R0)
+                        vs.append(val)
+                        rms.append(R0MAX)
     
-    # data = [rs, vs, ks, ts, ys]
-    # df = pd.DataFrame(data)
-    # df = df.transpose()
-    # cols = ['R0', 'PhiInt', 'Kappa', 'ThetaV', 'Y']
-    # df.columns = cols
-    # df['PhiInt'] = df['PhiInt'].apply(np.log10)
-    # df['R0'] = df['R0'].apply(np.log10)
-    # g = sns.FacetGrid(df, col='Kappa', row='ThetaV', hue='Y', sharex=False,
-                                # palette = sns.color_palette("Set1", n_colors=7),
-                                # legend_out=False) #ylim=(0,2),
-    # g.map(plt.plot, "R0", "PhiInt", lw = 1)
-    # g.set_axis_labels(r"$\log r_0'$", r"$\log (r' / r_0')^2 \times r_0' \times I_{\nu ,G}(y, r_0' | \kappa, \theta_V, \sigma, C_k)$")
-    # handles, labels = g.fig.get_axes()[0].get_legend_handles_labels()
-    # g.fig.get_axes()[-2].legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, -0.3), ncol=7)
-    # g.set_titles(r"$\kappa = {col_name}$ | $\theta_V = {row_name}$")
-    # plt.suptitle(r"$\phi$ Integrand ($r'_{{0,min}}={a}$)".format(a=TINY))
-    # g.fig.subplots_adjust(top=.9)
-    # g.fig.get_axes()[0].set_ylabel('')
+    data = [rs, vs, ks, ts, ys, rms]
+    df = pd.DataFrame(data)
+    df = df.transpose()
+    cols = ['R0', 'PhiInt', 'Kappa', 'ThetaV', 'Y', 'R0MAX']
+    df.columns = cols
+    df['PhiInt'] = df['PhiInt'].apply(np.log10)
+    df['R0'] = df['R0'].apply(np.log10)
+    g = sns.FacetGrid(df, col='Kappa', row='ThetaV', hue='Y', sharex=False,
+                                palette = sns.color_palette("Set1", n_colors=7),
+                                legend_out=False) #ylim=(0,2),
+    g.map(plt.plot, "R0", "PhiInt", lw = 1)
+    g.map(vertical_line, 'R0MAX', linestyle = 'dashed', lw = 1)
+    g.set_axis_labels(r"$r_0'$", r"$(r' / r_0')^2 \times r_0' \times I_{\nu ,G}(y, r_0' | \kappa, \theta_V, \sigma, C_k)$")
+    handles, labels = g.fig.get_axes()[0].get_legend_handles_labels()
+    handles = handles[0:len(handles) / 2]
+    labels = labels[0:len(labels) / 2]
+    g.fig.get_axes()[-2].legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, -0.3), ncol=7)
+    g.set_titles(r"$\kappa = {col_name}$ | $\theta_V = {row_name}$")
+    plt.suptitle(r"$\phi$ Integrand ($r'_{{0,min}}={a}$)".format(a=TINY))
+    g.fig.subplots_adjust(top=.9)
+    g.fig.get_axes()[0].set_ylabel('')
+    g.fig.get_axes()[3].set_ylabel('')
     # g.fig.get_axes()[6].set_ylabel('')
-    # g.fig.get_axes()[6].set_xlabel('')
-    # g.fig.get_axes()[8].set_xlabel('')
-    # # plt.show()
-    # plt.savefig("phiIntegrand(r0'min={a}).pdf".format(a=TINY), format="pdf", dpi=1200)
+    g.fig.get_axes()[9].set_ylabel('')
+    g.fig.get_axes()[9].set_xlabel('')
+    g.fig.get_axes()[11].set_xlabel('')
+    # plt.show()
+    plt.savefig("phiIntegrand(r0'min={a})_lin-alt.pdf".format(a=TINY), format="pdf", dpi=1200)
 
 if __name__ == "__main__":
     # test_rP_roots()
