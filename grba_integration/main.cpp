@@ -4,8 +4,10 @@
 #include <iostream>
 #include <fstream>
 #include <stdio.h>
+#include <conio.h>
 #include <vector>
 #include "cminpack.h"
+#include "DEIntegrator.h"
 
 const double TORAD = M_PI / 180.0;
 
@@ -20,6 +22,7 @@ class RootFuncPhi;
 int fcn(void *p, int n, const double *x, double *fvec, double *fjac, int ldfjac, int iflag);
 double rootPhi(RootFuncPhi& func, const double g, const double xacc);
 double simpsPhi(params& ps, const double r0, const double a, const double b, const double eps = 1.0e-9);
+void testSimpsPhi();
 DLLEXPORT double phiInt(const double r0, const double kap, const double thv, const double sig);
 double intG(double y, double chi, const double k, const double p);
 DLLEXPORT double fluxG(params& ps, const double y, const double r0);
@@ -31,14 +34,16 @@ void testR0Int();
 struct RootFuncR0;
 double rtsafeR0(RootFuncR0& func, const double x1, const double x2, const double xacc);
 
+class GrbaIntegrator;
+
 int main(void)
 {
     //testRootSolve();
-    testPhiInt();
+    //testPhiInt();
     // double result = phiInt(0.1, 1.0, 6.0, 2.0);
     // std::cout << result << std::endl;
     //testR0Int();
-
+    testSimpsPhi();
     return 0;
 }
 
@@ -112,6 +117,10 @@ public:
         return std::abs((first - second*frac)*exponent);
     }
 
+    const double phiVal() {
+        return phi;
+    }
+
 private:
     const double phi, r0, kap, sig, thv;
 };
@@ -129,6 +138,7 @@ int fcn(void *p, int n, const double *x, double *fvec, double *fjac, int ldfjac,
     {
         fjac[0] = ((RootFuncPhi*)p)->df(x[0]);
     }
+    //printf("phi = %02.3f, \t f = %02.5f, \t df = %02.5f \n", (double)((RootFuncPhi*)p)->phiVal() / M_PI, (double)fvec[0], (double)fjac[0]);
     return 0;
 }
 
@@ -150,6 +160,7 @@ double rootPhi(RootFuncPhi& func, double g, const double xacc) {
     p = &func;
 
     info = __cminpack_func__(hybrj1)(fcn, p, n, x, fvec, fjac, ldfjac, tol, wa, lwa);
+    printf("phi = %02.3f,\t r' = %02.5e,\t f = %02.5e,\t df = %02.5e \n", (double)func.phiVal() / M_PI, (double)x[0], (double)func.f(x[0]), (double)func.df(x[0]));
 
     //fnorm = __cminpack_func__(enorm)(n, fvec);
 
@@ -297,7 +308,7 @@ double rootPhi(RootFuncPhi& func, double g, const double xacc) {
 double simpsPhi(params& ps, const double r0, const double a, const double b, const double eps) {
     const int NMAX = 25;
     double sum, osum = 0.0;
-    for (int n = 6; n < NMAX; n++) {
+    for (int n = 3; n < NMAX; n++) {
         int it, j;
         double h, s, x, g, tnm;
         for (it = 2, j = 1; j<n - 1; j++) it <<= 1;
@@ -306,9 +317,10 @@ double simpsPhi(params& ps, const double r0, const double a, const double b, con
         s = 2.0;
         g = r0;
         x = a;
+        printf("SimpsPhi: Nsteps = %d, step size = %02.3e, starting guess = %02.3e \n", it, h, g);
         for (int i = 1; i < it; i++, x += h) {
             RootFuncPhi rfunc(x, r0, ps);
-            double rp = rootPhi(rfunc, g, 1.0e-9);
+            double rp = rootPhi(rfunc, g, 1.0e-5);
             g = rp;
             double fx = pow(rp / r0, 2.0);
             if (i % 2) {
@@ -318,11 +330,11 @@ double simpsPhi(params& ps, const double r0, const double a, const double b, con
                 s += 2.0*fx;
             }
         }
-
+        system("pause");
         sum = s*h / 3.0;
         if (n > 3)
             if (std::abs(sum - osum) < eps*std::abs(osum) || (sum == 0.0 && osum == 0.0)) {
-                //std::cout << "n = " << n << ",\tNum Steps = " << it << ",\tSum = " << sum << std::endl;
+                std::cout << "n = " << n << ",\tNum Steps = " << it << ",\tSum = " << sum << std::endl;
                 return sum;
             }
         osum = sum;
@@ -334,6 +346,13 @@ DLLEXPORT double phiInt(const double r0, const double kap, const double thv, con
     params PS = { kap, sig, thv, 0.0, 2.2, 1.0 };
     double sumVal = simpsPhi(PS, r0, 0.0, 2.0*M_PI);
     return sumVal;
+}
+
+void testSimpsPhi() {
+    double R0, KAP, THV;
+    std::cout << "Enter R0, KAP, THV \n" << std::endl;
+    std::cin >> R0 >> KAP >> THV;
+    double intVal = phiInt(R0, KAP, THV*TORAD, 2.0);
 }
 
 double intG(double y, double chi, const double k, const double p) {
@@ -383,13 +402,13 @@ double milneR0(params& ps, const double y, const double a, const double b, const
             x2 = a + (4 * i - 2)*h;
             x3 = a + (4 * i - 1)*h;
 
-            //printf_s("x1 = %f, x2 = %f, x3 = %f\n", x1, x2, x3);
+            printf_s("x1 = %f, x2 = %f, x3 = %f\n", x1, x2, x3);
 
             f1 = fluxG(ps, y, x1);
             f2 = fluxG(ps, y, x2);
             f3 = fluxG(ps, y, x3);
 
-            //printf_s("f1 = %e, f2 = %e, f3 = %e\n", f1, f2, f3);
+            printf_s("f1 = %e, f2 = %e, f3 = %e\n", f1, f2, f3);
 
             s = s + 2.0*f1 - f2 + 2.0*f3;
             //std::cout << "s = " << s << std::endl;
@@ -407,7 +426,7 @@ double milneR0(params& ps, const double y, const double a, const double b, const
         }
 
         sum = s*h * 4 / 3;
-        //std::cout << "n = " << n << ",\tNum Steps = " << it << ",\tSum = " << sum << std::endl;
+        std::cout << "n = " << n << ",\tNum Steps = " << it << ",\tSum = " << sum << std::endl;
         if (std::abs(sum - osum) < eps*std::abs(osum) || (sum == 0.0 && osum == 0.0)) {
             std::cout << "milneR0 converged with " << it << " sub-intervals." << std::endl;
             return sum;
@@ -442,6 +461,7 @@ struct RootFuncR0
     RootFuncR0(const double Y, params& p) :
         y(Y), kap(p.KAP), sig(p.SIG), thv(p.THV), k(p.K), gA(p.GA) {}
     double f(double r0) {
+        r0 = r0 / y;
         const double Gk = (4.0 - k)*pow(gA, 2.0);
         double thp0 = thetaPrime(r0, thv, 0.0);
         double eng0 = energyProfile(thp0, sig, kap);
@@ -450,8 +470,9 @@ struct RootFuncR0
         return lhs - rhs;
     }
     double df(double r0) {
+        r0 = r0 / y;
         double thp0 = thetaPrime(r0, thv, 0.0);
-        double frac = kap*log(2.0)*pow(thp0 / sig, 2.0*kap)*((r0 + tan(thv)) / (r0*(1.0 + r0*sin(thv)*cos(thv))));
+        double frac = kap*log(2.0)*pow(thp0 / sig, 2.0*kap)*((r0 + tan(thv)) / (r0 * (1.0 + r0*sin(thv)*cos(thv))));
         double exponent = 2.0*energyProfile(thp0, sig, kap);
         return (1.0 - frac)*exponent;
     }
@@ -511,6 +532,36 @@ double rtsafeR0(RootFuncR0& func, const double x1, const double x2, const double
     throw("Maximum number of iterations exceeded in rtsafeR0");
 }
 
+
+class GrbaIntegrator
+{
+public:
+    GrbaIntegrator(const double KAP, const double SIG, const double THV, const double K, const double P, const double GA) :
+        kap(KAP), sig(SIG), thv(THV), k(K), p(P), gA(GA)
+    {}
+
+    double intG(double y, double chi) {
+        const double bG = (1.0 - p) / 2.0;
+        double ys = pow(y, 0.5*(bG*(4.0 - k) + 4.0 - 3.0*k));
+        double chis = pow(chi, (7.0*k - 23.0 + bG*(13.0 + k)) / (6.0*(4.0 - k)));
+        double fac = pow((7.0 - 2.0*k)*chi*pow(y, 4.0 - k) + 1.0, bG - 2.0);
+        return ys*chis*fac;
+    }
+
+    const double fluxG(const double y, double r0)
+    {
+        params ps = { kap, sig, thv, k, p, gA };
+        const double Gk = (4.0 - k)*pow(gA, 2.0);
+        double thP0 = thetaPrime(r0, thv, 0.0);
+        double exp0 = pow(thP0 / sig, 2.0*kap);
+        double chiVal = (y - Gk*exp2(-exp0)*pow(tan(thv) + r0, 2.0)) / (pow(y, 5.0 - k));
+        return r0*intG(y, chiVal)*simpsPhi(ps, r0, 0.0, 2.0*M_PI);
+    }
+
+private:
+    const double kap, sig, thv, gA, k, p;
+};
+
 void testPhiInt() {
     double YVAL;
     std::cout << "Enter y value: " << std::endl;
@@ -523,23 +574,28 @@ void testPhiInt() {
             RootFuncR0 r0func(YVAL, PS);
             double R0MAX = rtsafeR0(r0func, 0.0, 0.6, 1.0e-7);
             printf("Kappa = %02.1f, Theta_V = %02.1f, R0'_max = %03.5f \n", KAP, THV, R0MAX);
-            double intVal;
             if (R0MAX < 0.0)
             {
                 printf("R0'_max negative. \n");
-                intVal = 0.0;
             }
             else
             {
-                intVal = milneR0(PS, YVAL, 0.001, R0MAX, 1.0e-5);
-                printf_s("R0' Integral = %03.5f\n", intVal);
-                /*double step = R0MAX / 8;
-                printf_s("%f\t%f\t%f\t%f\n", KAP, THV, R0MAX, step);
+                //GrbaIntegrator func(YVAL, PS);
+                //int evals;
+                //double errEst;
+                //double intVal;
+                //intVal = milneR0(PS, YVAL, 0.0, R0MAX, 1.0e-5);
+                //intVal = DEIntegrator<GrbaIntegrator>::Integrate(func, 0, R0MAX, 1e-5, evals, errEst);
+                //printf_s("R0' Integral: value = %03.5f, # evals = %d, error = %01.5e \n", intVal, evals, errEst);
+                //printf_s("R0' Integral: value = %03.5f \n", intVal);
+                double step = R0MAX / 8;
+                //printf_s("%f\t%f\t%f\t%f\n", KAP, THV, R0MAX, step);
                 for (int i = 1; i < 9; i++) {
                     double R0 = i*step;
                     double sumVal = simpsPhi(PS, R0, 0.0, 2.0*M_PI);
                     printf_s("%d\t%f\t%f\n", i, R0, sumVal);
-                }*/
+                    system("pause");
+                }
             }
         }
     }

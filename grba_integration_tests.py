@@ -123,7 +123,7 @@ def r_max(phi, r0, kap, sig, thv):
         eng0 = engProf(thp0, sig, kap)
         rhs = np.power(r0 + np.tan(thv), 2)*eng0
         return lhs - rhs
-    
+
     rootValR = fsolve(rootR, r0)[0]
     return rootValR
 
@@ -203,7 +203,7 @@ def plot_r0Int_cTest(y, kap, sig, thv):
         NUM_ROWS = len(full_dat)
         full_dat['kap'] = np.repeat(kap, NUM_ROWS)
         full_dat['thv'] = np.repeat(degrees(thv), NUM_ROWS)
-        
+
         return(full_dat)
 
 def plot_r0Max(y, kap, sig, thv):
@@ -228,7 +228,7 @@ def plot_r0Int_grid_cTest(y):
             print KAPPA, THETA_V
             df = plot_r0Int_cTest(y, KAPPA, SIGMA, radians(THETA_V))
             df_list.append(df)
-    
+
     data = pd.concat(df_list)
     print data
     grid = sns.lmplot(x = 'r0', y = 'int', hue = 'lab',
@@ -240,7 +240,7 @@ def plot_r0Int_grid_cTest(y):
     # axes[0, 0].set_ylim(1.0e-9, )
     axes[0, 0].set_xlim(1.0e-3, )
     plt.show()
-    
+
 def plot_r0Int_grid():
     SIGMA = 2.0
     df_list = []
@@ -255,25 +255,25 @@ def plot_r0Int_grid():
                 # df = plot_r0Max(y, KAPPA, SIGMA, THETA_V)
                 # print df.head()
                 df_list.append(df)
-                
+
                 # max_val = r0_max(y, KAPPA, SIGMA, radians(THETA_V))
                 # max_list[j][i].append(max_val)
                 # print KAPPA, THETA_V, y, max_val
             # i += 1
-    
+
     data = pd.concat(df_list)
     # print data.head()
     # plt.figure()
     grid = sns.lmplot(x = 'r0', y = 'int', hue = 'y',
                         col = 'kap', row = 'thv', data = data, markers = '.',
-                        palette = 'viridis', fit_reg = False)  # 
+                        palette = 'viridis', fit_reg = False)  #
     # grid.map(plt.axhline, color = 'red', linestyle = '--')
     # grid.map(plt.scatter, 'r0max', 'maxval')
     grid.set(yscale="log")
     # grid.set(xscale="log")
     # grid.set_axis_labels("r0'", "Root Function")
     grid.set_axis_labels("r0'", "r0' Integrand")
-    
+
     # for loc, data in grid.facet_data():
         # # print loc
         # grid.axes[loc[0], loc[1]].scatter(max_list[loc[0]][loc[1]], [0.0 for x in range(7)], marker = 'o')
@@ -282,7 +282,7 @@ def plot_r0Int_grid():
         # print i, ax.get_xlim()
         # for rm in max_list[i]:
             # ln_ = ax.axvline(x = rm, linestyle = '--', color = 'red')
-    
+
     axes[0, 0].set_ylim(1.0e-9, )
     axes[0, 0].set_xlim(0.0, )
     grid.set_titles('thv = {row_name} | kap = {col_name}')
@@ -306,14 +306,14 @@ def r0_integral():
                                     epsabs = 1.0e-5)[0]
                     print KAP, THETA_V, YVAL, int_val
                     ints[index] = int_val
-            
+
             loc_df = pd.DataFrame(data = {'y': ys, 'ival': ints})
             N = len(loc_df)
             loc_df['kap'] = np.repeat(KAP, N)
             loc_df['thv'] = np.repeat(THETA_V, N)
-            
+
             dat_list.append(loc_df)
-    
+
     df = pd.concat(dat_list)
     grid = sns.lmplot(x = 'y', y = 'ival', col = 'kap', row = 'thv', data = df,
                         fit_reg = False)
@@ -330,7 +330,7 @@ def plot_rMaxPhi_grid(y, kap, sig, thv):
     R, P = np.meshgrid(r0s, phis)
     # RM = vec_r_max(P, R, kap, sig, thv)
     s = np.frompyfunc(solveR, 5, 1)
-    
+
     RM = np.abs(s(R, P, kap, sig, thv))
     # print RM
     RNORM = np.power(np.divide(RM, r0s), 2.0)
@@ -346,7 +346,7 @@ def plot_rMaxPhi_grid(y, kap, sig, thv):
     plt.xticks(rotation = 90)
     plt.show()
     plt.clf()
-    
+
     # plt.figure()
     # plt.pcolormesh(R, P, RM)
     # plt.show()
@@ -362,6 +362,63 @@ def plot_r0Phi(r0, kap, sig, thv):
     dat['thv'] = np.repeat(thv, NUM_ROWS)
     # print data.head()
     return(dat)
+
+def plot_root_jac_grid():
+    TINY = np.power(10.0, -3.0)
+    # for YVAL in [0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.99]:
+    for YVAL in [0.5]:
+        ps = []
+        fs = []
+        rs = []
+        ks = []
+        ts = []
+        cs = []
+        for KAP in [0.0, 1.0, 10.0]:
+            for THV in [1.0, 2.0, 6.0]:
+                THETA_V = radians(THV)
+                R0MAX = r0_max(YVAL, KAP, SIGMA, radians(THV))
+                r0s = np.linspace(0.0, R0MAX, num = 9)
+                r0s[0] = TINY
+                phis = np.linspace(0.0, 2.0*np.pi, num = 100)
+                for c, R0 in enumerate(r0s):
+                    G = R0
+                    for PHI in phis:
+                        RP = root_jac()
+                        G = RP
+                        F = np.log10(np.power(np.divide(RP, R0), 2.0))
+                        ps.append(PHI/np.pi)
+                        rs.append(R0)
+                        fs.append(F)
+                        ks.append(KAP)
+                        ts.append(THV)
+                        cs.append(c)
+
+        data = [ps, rs, ks, ts, fs, cs]
+        df = pd.DataFrame(data)
+        df = df.transpose()
+        cols = ['Phi', 'R0P', 'Kappa', 'ThetaV', 'FPhi', 'C']
+        df.columns = cols
+        df = df.round({'R0P': 3})
+        g = sns.FacetGrid(df, col='Kappa', row='ThetaV', hue='C',
+                                xlim=(0,2),
+                                palette = sns.color_palette("Spectral", n_colors=9)) #ylim=(0,2),
+        g.map(plt.plot, "Phi", "FPhi", lw = 1)
+        # g = sns.factorplot(x="Phi", y="FPhi", hue="C", row="ThetaV", col="Kappa",
+                            # data=df, palette = sns.color_palette("Blues", n_colors=len(r0s)))
+        g.set_axis_labels(r"$\phi [\pi]$", r"$Log f^2(\phi) = Log (r'/r_0')^2$")
+        for i in range(len(g.fig.get_axes())):
+            handles, labels = g.fig.get_axes()[i].get_legend_handles_labels()
+            thv_val = float(g.fig.get_axes()[i].get_title().split('|')[0].split('=')[1].strip())
+            kap_val = float(g.fig.get_axes()[i].get_title().split('|')[1].split('=')[1].strip())
+            # print kap_val, thv_val
+            labs = [df.groupby(['Kappa', 'ThetaV', 'C']).get_group((kap_val, thv_val, float(lab)))['R0P'].unique()[0] for lab in labels]
+            g.fig.get_axes()[i].legend(handles, labs,
+                                                loc='upper right',
+                                                bbox_to_anchor=(1.2, 1.0))
+        g.set_titles(r"$\kappa = {col_name}$ | $\theta_V = {row_name}$")
+        plt.suptitle(r"$y={a} | r'_{{0,min}}={b}$".format(a=YVAL, b=TINY))
+        g.fig.subplots_adjust(top=.9)
+        plt.show()
 
 def main():
     tiny = np.power(10.0, -3.0)
@@ -407,7 +464,7 @@ def main():
                         ks.append(KAP)
                         ts.append(THV)
                         cs.append(c)
-        
+
         data = [ps, rs, ks, ts, fs, cs]
         df = pd.DataFrame(data)
         df = df.transpose()
@@ -428,7 +485,7 @@ def main():
             # print kap_val, thv_val
             labs = [df.groupby(['Kappa', 'ThetaV', 'C']).get_group((kap_val, thv_val, float(lab)))['R0P'].unique()[0] for lab in labels]
             g.fig.get_axes()[i].legend(handles, labs,
-                                                loc='upper right', 
+                                                loc='upper right',
                                                 bbox_to_anchor=(1.2, 1.0))
         g.set_titles(r"$\kappa = {col_name}$ | $\theta_V = {row_name}$")
         plt.suptitle(r"$y={a} | r'_{{0,min}}={b}$".format(a=YVAL, b=TINY))
@@ -447,7 +504,7 @@ def main():
         # # KAPPA = np.power(10.0, -float(kap + 1))
         # KAPPA = float(kap)  # + 0.01
         # # print fluxG_fullStr(0.1, 0.5, 1.0, 2.0, radians(6.0))
-        # str_int = nquad(fluxG_fullStr, [bounds_ry, bounds_yr], 
+        # str_int = nquad(fluxG_fullStr, [bounds_ry, bounds_yr],
                         # args = (KAPPA, SIGMA, THETA_V),
                         # opts = {'epsabs': 1.0e-5})
         # # str_int = quad(fluxG_fullStr, TINY, r0_max(YVAL, KAPPA, SIGMA, THETA_V) - TINY,

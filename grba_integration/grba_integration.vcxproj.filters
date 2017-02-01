@@ -23,5 +23,8 @@
     <ClInclude Include="cminpack.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="DEIntegrator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
