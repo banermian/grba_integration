@@ -1,10 +1,12 @@
 import numpy as np
 from scipy.optimize import root, fsolve
-from ctypes import cdll, c_double
+from scipy.integrate import quad
+from ctypes import cdll, c_double, c_int
 
 class GrbaIntegrator(object):
     def __init__(self, kap, thv, sig, gA, k, p):
-        grbaint = cdll.LoadLibrary("Debug/grba_integration.dll")
+        # grbaint = cdll.LoadLibrary("Debug/grba_integration.dll")
+        grbaint = cdll.LoadLibrary("Release/grba_integration.dll")
         thetaPrime = grbaint.thetaPrime
         thetaPrime.restype = c_double
         thetaPrime.argtypes = [c_double, c_double, c_double]
@@ -14,6 +16,15 @@ class GrbaIntegrator(object):
         fluxG = grbaint.fluxWrap
         fluxG.restype = c_double
         fluxG.argtypes = [c_double, c_double, c_double, c_double, c_double, c_double, c_double, c_double]
+        r0IntDE = grbaint.r0IntDE
+        r0IntDE.restype = c_double
+        r0IntDE.argtypes = [c_double, c_double, c_double, c_double, c_double, c_double, c_double, c_double]
+        fluxG_ct = grbaint.fluxWrap_ct
+        fluxG_ct.restype = c_double
+        fluxG_ct.argtypes = (c_int, c_double)
+        r0Max = grbaint.r0Max
+        r0Max.restype = c_double
+        r0Max.argtypes = [c_double, c_double, c_double, c_double, c_double, c_double, c_double]
         
         self.kap = kap
         self.thv = thv
@@ -24,6 +35,9 @@ class GrbaIntegrator(object):
         self.thetaPrime = thetaPrime
         self.engProf = engProf
         self.fluxG = fluxG
+        self.r0IntDE = r0IntDE
+        self.fluxG_ct = fluxG_ct
+        self.r0Max = r0Max
     
     def _root_fun(self, r, r0, phi, kap, sig, thv):
         thp = self.thetaPrime(r, thv, phi)
@@ -89,3 +103,31 @@ class GrbaIntegrator(object):
     def _r0_integrand_c(self, y, r0):
         return self.fluxG(y, r0, self.kap, self.sig, self.thv, self.gA, self.k, self.p)
     
+    def r0_max(self, y):
+        return self.r0Max(y, self.kap, self.sig, self.thv, self.k, self.p, self.gA)
+    
+    def r0_int(self, y, RMIN):
+        return self.r0IntDE(y, RMIN, self.kap, self.sig, self.thv, self.k, self.p, self.gA)
+    
+    def r0_int_ct(self, y, RMIN, RMAX):
+        return quad(self.fluxG_ct, RMIN, RMAX, (y, self.kap, self.sig, self.thv, self.k, self.p, self.gA))[0]
+
+if __name__ == '__main__':
+    import timeit
+    SIGMA = 2.0
+    title = "|   Y   |  KAP   |  THV  |  TIME(s)    |"
+    print title
+    print "-"*len(title)
+    for Y in [0.001, 0.1, 0.5, 0.9, 0.999]:
+    # for Y in [0.1]:
+        for KAP in [0.0, 1.0, 10.0]:
+            for THV in [0.0, 1.0, 3.0]:
+                THETA_V = np.radians(THV)
+                grb = GrbaIntegrator(KAP, THETA_V, SIGMA, 1.0, 0.0, 2.2)
+                # intVal = grb.r0_max(Y)
+                # intVal = grb.r0_int(Y, 0.00001)
+                s = """from grba_int import *;grb = GrbaIntegrator({}, {}, {}, 1.0, 0.0, 2.2);intVal = grb.r0_int({}, 0.00001)""".format(KAP, THETA_V, SIGMA, Y)
+                intVal = timeit.timeit(stmt = s, number = 10)
+                # R0MAX = grb.r0_max(Y)
+                # intVal = grb.r0_int_ct(Y, 0.001, R0MAX)
+                print "|  {}  |  {:04.1f}  |  {}  |  {:.3e}  |".format(Y, KAP, THV, intVal)

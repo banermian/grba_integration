@@ -11,6 +11,8 @@ from scipy.integrate import nquad, quad, romberg, quadrature
 from math import radians, degrees
 from cycler import cycler
 
+from grba_int import *
+
 # n = 10
 # colors = [plt.get_cmap('Blues')(1. * i/n) for i in range(n)]
 # mpl.rcParams['axes.prop_cycle'] = cycler('color', colors)
@@ -252,6 +254,61 @@ def plot_r0Int_grid():
             for y in [TINY, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0 - TINY]:
             # for y in [TINY, 1.0 - TINY]:
                 # print KAPPA, THETA_V, y
+                df = plot_r0Int(y, KAPPA, SIGMA, radians(THETA_V))
+                # df = plot_r0Max(y, KAPPA, SIGMA, THETA_V)
+                # print df.head()
+                df_list.append(df)
+
+                # max_val = r0_max(y, KAPPA, SIGMA, radians(THETA_V))
+                # max_list[j][i].append(max_val)
+                # print KAPPA, THETA_V, y, max_val
+            # i += 1
+
+    data = pd.concat(df_list)
+    # print data.head()
+    # plt.figure()
+    grid = sns.lmplot(x = 'r0', y = 'int', hue = 'y',
+                        col = 'kap', row = 'thv', data = data, markers = '.',
+                        palette = 'viridis', fit_reg = False)  #
+    # grid.map(plt.axhline, color = 'red', linestyle = '--')
+    # grid.map(plt.scatter, 'r0max', 'maxval')
+    grid.set(yscale="log")
+    # grid.set(xscale="log")
+    # grid.set_axis_labels("r0'", "Root Function")
+    grid.set_axis_labels("r0'", "r0' Integrand")
+
+    # for loc, data in grid.facet_data():
+        # # print loc
+        # grid.axes[loc[0], loc[1]].scatter(max_list[loc[0]][loc[1]], [0.0 for x in range(7)], marker = 'o')
+    axes = grid.axes
+    # for i, ax in enumerate(axes.flat):
+        # print i, ax.get_xlim()
+        # for rm in max_list[i]:
+            # ln_ = ax.axvline(x = rm, linestyle = '--', color = 'red')
+
+    axes[0, 0].set_ylim(1.0e-9, )
+    axes[0, 0].set_xlim(0.0, )
+    grid.set_titles('thv = {row_name} | kap = {col_name}')
+    plt.show()
+    # grid.savefig("r0-Int.png")
+
+def plot_r0Int_time(y, kap, sig, thv, r0min):
+    ys = np.linspace(0.0, 1.0, num = 10)
+    vals = vec_fluxG_fullStr(r0s, y, kap, sig, thv)
+    dat = pd.DataFrame(data = {'r0': r0s, 'int': vals})
+    NUM_ROWS = len(dat)
+    dat['y'] = np.repeat(y, NUM_ROWS)
+    dat['kap'] = np.repeat(kap, NUM_ROWS)
+    dat['thv'] = np.repeat(thv, NUM_ROWS)
+    # print data.head()
+    return(dat)
+    
+def plot_r0IntTime_grid():
+    SIGMA = 2.0
+    df_list = []
+    for i, KAPPA in enumerate([0.0, 1.0, 10.0]):
+        for j, THETA_V in enumerate([0.0, 2.0, 6.0]):
+            for y in [TINY, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0 - TINY]:
                 df = plot_r0Int(y, KAPPA, SIGMA, radians(THETA_V))
                 # df = plot_r0Max(y, KAPPA, SIGMA, THETA_V)
                 # print df.head()

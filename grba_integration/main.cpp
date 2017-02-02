@@ -27,6 +27,7 @@ DLLEXPORT double phiInt(const double r0, const double kap, const double thv, con
 double intG(double y, double chi, const double k, const double p);
 DLLEXPORT double fluxG(params& ps, const double y, const double r0);
 DLLEXPORT double fluxWrap(double y, double r0, const double kap, const double sig, const double thv, const double gA, const double k, const double p);
+DLLEXPORT double fluxWrap_ct(int n, double args[8]);
 void testPhiInt();
 double milneR0(params& ps, const double y, const double a, const double b, const double eps = 1.0e-7);
 DLLEXPORT double r0Int(double y, double r0Min, double r0Max, const double kap, const double sig, const double thv, const double gA, const double k, const double p);
@@ -35,6 +36,8 @@ struct RootFuncR0;
 double rtsafeR0(RootFuncR0& func, const double x1, const double x2, const double xacc);
 
 class GrbaIntegrator;
+DLLEXPORT double r0Max(double y, const double kap, const double sig, const double thv, const double k, const double p, const double gA);
+DLLEXPORT double r0IntDE(double y, const double RMIN, const double kap, const double sig, const double thv, const double k, const double p, const double gA);
 
 int main(void)
 {
@@ -43,7 +46,7 @@ int main(void)
     // double result = phiInt(0.1, 1.0, 6.0, 2.0);
     // std::cout << result << std::endl;
     //testR0Int();
-    testSimpsPhi();
+    //testSimpsPhi();
     return 0;
 }
 
@@ -144,7 +147,7 @@ int fcn(void *p, int n, const double *x, double *fvec, double *fjac, int ldfjac,
 
 double rootPhi(RootFuncPhi& func, double g, const double xacc) {
     int n, ldfjac, info, lwa;
-    double tol, fnorm;
+    double tol; // , fnorm;
     double x[1], fvec[1], fjac[1 * 1], wa[99];
 
     n = 1;
@@ -160,7 +163,7 @@ double rootPhi(RootFuncPhi& func, double g, const double xacc) {
     p = &func;
 
     info = __cminpack_func__(hybrj1)(fcn, p, n, x, fvec, fjac, ldfjac, tol, wa, lwa);
-    printf("phi = %02.3f,\t r' = %02.5e,\t f = %02.5e,\t df = %02.5e \n", (double)func.phiVal() / M_PI, (double)x[0], (double)func.f(x[0]), (double)func.df(x[0]));
+    //printf("phi = %02.3f,\t r' = %02.5e,\t f = %02.5e,\t df = %02.5e \n", (double)func.phiVal() / M_PI, (double)x[0], (double)func.f(x[0]), (double)func.df(x[0]));
 
     //fnorm = __cminpack_func__(enorm)(n, fvec);
 
@@ -317,7 +320,7 @@ double simpsPhi(params& ps, const double r0, const double a, const double b, con
         s = 2.0;
         g = r0;
         x = a;
-        printf("SimpsPhi: Nsteps = %d, step size = %02.3e, starting guess = %02.3e \n", it, h, g);
+        //printf("SimpsPhi: Nsteps = %d, step size = %02.3e, starting guess = %02.3e \n", it, h, g);
         for (int i = 1; i < it; i++, x += h) {
             RootFuncPhi rfunc(x, r0, ps);
             double rp = rootPhi(rfunc, g, 1.0e-5);
@@ -330,11 +333,11 @@ double simpsPhi(params& ps, const double r0, const double a, const double b, con
                 s += 2.0*fx;
             }
         }
-        system("pause");
+        //system("pause");
         sum = s*h / 3.0;
         if (n > 3)
             if (std::abs(sum - osum) < eps*std::abs(osum) || (sum == 0.0 && osum == 0.0)) {
-                std::cout << "n = " << n << ",\tNum Steps = " << it << ",\tSum = " << sum << std::endl;
+                //std::cout << "n = " << n << ",\tNum Steps = " << it << ",\tSum = " << sum << std::endl;
                 return sum;
             }
         osum = sum;
@@ -372,14 +375,23 @@ DLLEXPORT double fluxG(params& ps, const double y, double r0) {
     const double p = ps.P;
 
     const double Gk = (4.0 - k)*pow(gA, 2.0);
-    double thP0 = thetaPrime(r0, thv, 0.0);
+    double thP0 = thetaPrime(r0 / y, thv, 0.0);
     double exp0 = pow(thP0 / sig, 2.0*kap);
-    double chiVal = (y - Gk*exp2(-exp0)*pow(tan(thv) + r0, 2.0)) / (pow(y, 5.0 - k));
+    double chiVal = (y - Gk*exp2(-exp0)*pow(tan(thv) + r0 / y, 2.0)) / (pow(y, 5.0 - k));
     return r0*intG(y, chiVal, k, p)*simpsPhi(ps, r0, 0.0, 2.0*M_PI);
 }
 
 DLLEXPORT double fluxWrap(double y, double r0, const double kap, const double sig, const double thv, const double gA, const double k, const double p) {
     params PS = { kap, sig, thv, k, p, gA };
+    double fluxVal = fluxG(PS, y, r0);
+    return fluxVal;
+}
+
+DLLEXPORT double fluxWrap_ct(int n, double args[8]) {
+    double y, r0;  // , kap, sig, thv, gA, k, p
+    r0 = args[0];
+    y = args[1];
+    params PS = { args[2], args[3], args[4], args[5], args[6], args[7] };
     double fluxVal = fluxG(PS, y, r0);
     return fluxVal;
 }
@@ -484,8 +496,8 @@ double rtsafeR0(RootFuncR0& func, const double x1, const double x2, const double
     double fl = func.f(x1);
     double fh = func.f(x2);
     if ((fl > 0.0 && fh > 0.0) || (fl < 0.0 && fh < 0.0)) {
-        std::cout << "Root not bracketed in rtsafeR0" << std::endl;
-        std::cout << "fl = " << fl << ", fh = " << fh << std::endl;
+        //std::cout << "Root not bracketed in rtsafeR0" << std::endl;
+        //std::cout << "fl = " << fl << ", fh = " << fh << std::endl;
         return -1.0;
         //throw("Root must be bracketed in rtsafeR0");
     };
@@ -536,29 +548,41 @@ double rtsafeR0(RootFuncR0& func, const double x1, const double x2, const double
 class GrbaIntegrator
 {
 public:
-    GrbaIntegrator(const double KAP, const double SIG, const double THV, const double K, const double P, const double GA) :
-        kap(KAP), sig(SIG), thv(THV), k(K), p(P), gA(GA)
+
+    GrbaIntegrator(double Y, const double KAP, const double SIG, const double THV, const double K, const double P, const double GA) :
+        y(Y), kap(KAP), sig(SIG), thv(THV), k(K), p(P), gA(GA)
     {}
 
-    double intG(double y, double chi) {
-        const double bG = (1.0 - p) / 2.0;
-        double ys = pow(y, 0.5*(bG*(4.0 - k) + 4.0 - 3.0*k));
-        double chis = pow(chi, (7.0*k - 23.0 + bG*(13.0 + k)) / (6.0*(4.0 - k)));
-        double fac = pow((7.0 - 2.0*k)*chi*pow(y, 4.0 - k) + 1.0, bG - 2.0);
-        return ys*chis*fac;
+    double operator()(double r0) const
+    {
+        params ps = { kap, sig, thv, k, p, gA };
+        const double Gk = (4.0 - k)*pow(gA, 2.0);
+        double thP0 = thetaPrime(r0 / y, thv, 0.0);
+        double exp0 = pow(thP0 / sig, 2.0*kap);
+        double chiVal = (y - Gk*exp2(-exp0)*pow(tan(thv) + r0 / y, 2.0)) / (pow(y, 5.0 - k));
+        return r0*intG(y, chiVal, k, p)*simpsPhi(ps, r0, 0.0, 2.0*M_PI);
     }
 
-    const double fluxG(const double y, double r0)
+    //double intG(double y, double chi) {
+    //    const double bG = (1.0 - p) / 2.0;
+    //    double ys = pow(y, 0.5*(bG*(4.0 - k) + 4.0 - 3.0*k));
+    //    double chis = pow(chi, (7.0*k - 23.0 + bG*(13.0 + k)) / (6.0*(4.0 - k)));
+    //    double fac = pow((7.0 - 2.0*k)*chi*pow(y, 4.0 - k) + 1.0, bG - 2.0);
+    //    return ys*chis*fac;
+    //}
+
+    /*const double fluxG(const double y, double r0)
     {
         params ps = { kap, sig, thv, k, p, gA };
         const double Gk = (4.0 - k)*pow(gA, 2.0);
         double thP0 = thetaPrime(r0, thv, 0.0);
         double exp0 = pow(thP0 / sig, 2.0*kap);
         double chiVal = (y - Gk*exp2(-exp0)*pow(tan(thv) + r0, 2.0)) / (pow(y, 5.0 - k));
-        return r0*intG(y, chiVal)*simpsPhi(ps, r0, 0.0, 2.0*M_PI);
-    }
+        return r0*intG(y, chiVal, k, p)*simpsPhi(ps, r0, 0.0, 2.0*M_PI);
+    }*/
 
 private:
+    double y;
     const double kap, sig, thv, gA, k, p;
 };
 
@@ -610,4 +634,27 @@ void testPhiInt() {
     //double sumVal = simpsPhi(&PS, R0, 0.0, 2.0*M_PI);
     //fclose(ofile);
     /*std::cout << sumVal << std::endl;*/
+}
+
+DLLEXPORT double r0Max(double y, const double kap, const double sig, const double thv, const double k, const double p, const double gA) {
+    params PS = { kap, sig, thv, k, p, gA };
+    RootFuncR0 r0func(y, PS);
+    double R0MAX = rtsafeR0(r0func, 0.0, 0.65, 1.0e-7);
+    return R0MAX;
+}
+
+DLLEXPORT double r0IntDE(double y, const double RMIN, const double kap, const double sig, const double thv, const double k, const double p, const double gA) {
+    params PS = { kap, sig, thv, k, p, gA };
+    RootFuncR0 r0func(y, PS);
+    double R0MAX = rtsafeR0(r0func, 0.0, 0.65, 1.0e-7);
+    if (R0MAX >= 0.0) {
+        GrbaIntegrator func(y, kap, sig, thv, k, p, gA);
+        double intVal;
+        intVal = DEIntegrator<GrbaIntegrator>::Integrate(func, RMIN, R0MAX, 1e-5);
+        return intVal;
+    }
+    else {
+        return 0.0;
+    }
+    
 }
