@@ -13,6 +13,9 @@ class GrbaIntegrator(object):
         engProf = grbaint.energyProfile
         engProf.restype = c_double
         engProf.argtypes = [c_double, c_double, c_double]
+        phiInt = grbaint.phiInt
+        phiInt.restype = c_double
+        phiInt.argtypes = [c_double, c_double, c_double, c_double]
         fluxG = grbaint.fluxWrap
         fluxG.restype = c_double
         fluxG.argtypes = [c_double, c_double, c_double, c_double, c_double, c_double, c_double, c_double]
@@ -89,6 +92,9 @@ class GrbaIntegrator(object):
             
             osum = sum
      
+    def phi_int(self, r0):
+        return self.phiInt(r0, self.kap, self.thv, self.sig)
+    
     def _r0_integrand(self, y, r0):
         Gk = (4.0 - self.k)*self.gA**2.0
         thP0 = self.thetaPrime(r0 / y, self.thv, 0.0)
@@ -124,10 +130,10 @@ if __name__ == '__main__':
             for THV in [0.0, 1.0, 3.0]:
                 THETA_V = np.radians(THV)
                 grb = GrbaIntegrator(KAP, THETA_V, SIGMA, 1.0, 0.0, 2.2)
-                # intVal = grb.r0_max(Y)
+                intVal = grb.r0_max(Y)
                 # intVal = grb.r0_int(Y, 0.00001)
-                s = """from grba_int import *;grb = GrbaIntegrator({}, {}, {}, 1.0, 0.0, 2.2);intVal = grb.r0_int({}, 0.00001)""".format(KAP, THETA_V, SIGMA, Y)
-                intVal = timeit.timeit(stmt = s, number = 10)
+                # s = """from grba_int import *;grb = GrbaIntegrator({}, {}, {}, 1.0, 0.0, 2.2);intVal = grb.r0_int({}, 0.00001)""".format(KAP, THETA_V, SIGMA, Y)
+                # intVal = timeit.timeit(stmt = s, number = 10)
                 # R0MAX = grb.r0_max(Y)
                 # intVal = grb.r0_int_ct(Y, 0.001, R0MAX)
-                print "|  {}  |  {:04.1f}  |  {}  |  {:.3e}  |".format(Y, KAP, THV, intVal)
+                print "|  {:05.3f}  |  {:04.1f}  |  {}  |  {:05.3f}  |".format(Y, KAP, THV, intVal)
